@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-const items = [['/', 'Visão geral', '◉'], ['/parkvision', 'ParkVision', 'P'], ['/roadguard', 'RoadGuard', '⚠'], ['/rotas', 'Rotas acessíveis', '♿'], ['/mapa', 'Mapa ao vivo', '⌖'], ['/comunidade', 'Comunidade', '☺'], ['/reservas', 'Minhas reservas', '▣'], ['/historico', 'Histórico', '↺'], ['/ajuda', 'Central de ajuda', '?'], ['/configuracoes', 'Configurações', '⚙']]
+const items = [['/', 'Visão geral', '◉'], ['/parkvision', 'ParkVision'], ['/roadguard', 'RoadGuard'], ['/rotas', 'Rotas acessíveis' ], ['/mapa', 'Mapa ao vivo'], ['/comunidade', 'Comunidade'], ['/reservas', 'Minhas reservas'], ['/historico', 'Histórico', '↺'], ['/ajuda', 'Central de ajuda', '?'], ['/configuracoes', 'Configurações', '⚙']]
 // Sidebar fixa no desktop; vira menu inferior no celular (CSS).
 export default function Sidebar() {
   return (
