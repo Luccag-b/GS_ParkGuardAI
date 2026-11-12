@@ -1,0 +1,75 @@
+.leaflet-map {
+  width: 100%;
+  height: 100%;
+  background: #172235;
+}
+
+.leaflet-container {
+  font-family: 'DM Sans', sans-serif;
+}
+
+.parking-map-icon,
+.user-map-icon,
+.destination-map-icon {
+  background: none;
+  border: 0;
+}
+
+.parking-map-icon span {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 2px solid #d6ffe9;
+  border-radius: 50%;
+  background: #168256;
+  box-shadow: 0 2px 8px #0009;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-map-icon span {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border: 4px solid white;
+  border-radius: 50%;
+  background: #2585ff;
+  box-shadow: 0 0 0 8px #2585ff44, 0 2px 8px #0009;
+}
+
+.destination-map-icon span {
+  display: block;
+  width: max-content;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #f22d85;
+  box-shadow: 0 2px 8px #0009;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #111629;
+  color: #f5f5fb;
+}
+
+.leaflet-popup-content {
+  font-size: 12px;
+}
+
+.leaflet-popup-content p {
+  margin: 6px 0;
+}
+
+.leaflet-control-attribution {
+  font-size: 9px !important;
+}
+
+.map-status {
+  color: #83dcb1;
+  font-size: 10px;
+}

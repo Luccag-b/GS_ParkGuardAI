@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import './map.css';
 import {
   Accessibility, Bell, CarFront, Eye, Home, Map, MapPin, Menu, Plus, Search,
   ShieldCheck, TriangleAlert, User, Volume2, X, Route
@@ -8,10 +11,10 @@ import './auth.css';
 const accountsKey = 'parkguard.accounts';
 const sessionKey = 'parkguard.session';
 const initialPlaces = [
-  { id: 1, n: 'Estacionamento Central', a: 'Av. Paulista, 1000', d: '120 m', price: 'R$ 12/h', spots: 8, access: true, ramp: true, side: true },
-  { id: 2, n: 'Garagem Bela Vista', a: 'Rua Itapeva, 220', d: '350 m', price: 'R$ 9/h', spots: 3, access: false },
-  { id: 3, n: 'Shopping Cidade', a: 'Rua Pamplona, 800', d: '600 m', price: 'R$ 15/h', spots: 12, access: true, ramp: true, side: true },
-  { id: 4, n: 'Edifício Horizonte', a: 'Alameda Santos, 540', d: '750 m', price: 'R$ 10/h', spots: 2, access: true, side: true }
+  { id: 1, n: 'Estacionamento Central', a: 'Av. Paulista, 1000', d: '120 m', price: 'R$ 12/h', spots: 8, access: true, ramp: true, side: true, coordinates: [-23.5631, -46.6544] },
+  { id: 2, n: 'Garagem Bela Vista', a: 'Rua Itapeva, 220', d: '350 m', price: 'R$ 9/h', spots: 3, access: false, coordinates: [-23.5597, -46.6524] },
+  { id: 3, n: 'Shopping Cidade', a: 'Rua Pamplona, 800', d: '600 m', price: 'R$ 15/h', spots: 12, access: true, ramp: true, side: true, coordinates: [-23.5656, -46.6531] },
+  { id: 4, n: 'Edifício Horizonte', a: 'Alameda Santos, 540', d: '750 m', price: 'R$ 10/h', spots: 2, access: true, side: true, coordinates: [-23.5621, -46.6591] }
 ];
 const initialAlerts = [
   { id: 1, t: 'Buraco na via', where: 'Av. Paulista, próximo ao nº 850', kind: 'road', time: 'há 4 min' },
@@ -165,6 +168,9 @@ export default function App() {
   const [selected, setSelected] = useState(1);
   const [destination, setDestination] = useState('Hospital das Clínicas');
   const [mapCenter, setMapCenter] = useState([-23.5614, -46.6559]);
+  const [userLocation, setUserLocation] = useState(null);
+  const [routeCoordinates, setRouteCoordinates] = useState([]);
+  const [mapBusy, setMapBusy] = useState(false);
   const [modal, setModal] = useState(false);
   const [kind, setKind] = useState('Buraco na via');
   const [where, setWhere] = useState('');
@@ -202,17 +208,41 @@ export default function App() {
 
   const locateDestination = async () => {
     if (!destination.trim()) return notify('Informe um endereço para buscar no mapa.');
+    setMapBusy(true);
+    setRouteCoordinates([]);
     try {
       const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=pt-BR&q=${encodeURIComponent(destination)}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error('O serviço de mapas não respondeu. Tente novamente.');
       const [result] = await response.json();
       if (!result) throw new Error('Endereço não encontrado. Tente informar rua, número e cidade.');
-      setMapCenter([Number(result.lat), Number(result.lon)]);
+      const destinationCoordinates = [Number(result.lat), Number(result.lon)];
+      setMapCenter(destinationCoordinates);
+      if (!navigator.geolocation) {
+        throw new Error('Este navegador não permite obter sua localização. Ative a localização ou use outro navegador.');
+      }
+      const location = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          position => resolve([position.coords.latitude, position.coords.longitude]),
+          () => reject(new Error('Não foi possível acessar sua localização. Permita o acesso à localização para traçar a rota.')),
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+      });
+      setUserLocation(location);
+      const [originLongitude, originLatitude] = location.slice().reverse();
+      const [destinationLongitude, destinationLatitude] = destinationCoordinates.slice().reverse();
+      const routeResponse = await fetch(`https://router.project-osrm.org/route/v1/driving/${originLongitude},${originLatitude};${destinationLongitude},${destinationLatitude}?overview=full&geometries=geojson`);
+      if (!routeResponse.ok) throw new Error('Não foi possível calcular a rota agora. Tente novamente.');
+      const routeData = await routeResponse.json();
+      const route = routeData.routes?.[0]?.geometry?.coordinates;
+      if (!route?.length) throw new Error('Não foi encontrada uma rota para esse destino.');
+      setRouteCoordinates(route.map(([longitude, latitude]) => [latitude, longitude]));
       setTab('Mapa');
-      notify('Local encontrado no mapa.');
+      notify('Rota encontrada. O mapa mostra sua localização e as vagas disponíveis.');
     } catch (mapError) {
       notify(mapError.message || 'Não foi possível buscar esse endereço.');
+    } finally {
+      setMapBusy(false);
     }
   };
 
@@ -263,19 +293,19 @@ export default function App() {
         {tab === 'Início' && <>
           <section className="hero"><div><label className="chip">● INTELIGÊNCIA URBANA</label><h2>Sua jornada,<br /><em>sem barreiras.</em></h2>
             <p>Encontre vagas, evite riscos e descubra rotas acessíveis. Tudo conectado em um só lugar.</p>
-            <div className="search"><MapPin /><input value={destination} onChange={event => setDestination(event.target.value)} onKeyDown={event => event.key === 'Enter' && locateDestination()} placeholder="Para onde você vai?" /><button onClick={locateDestination}>Buscar →</button></div>
+            <div className="search"><MapPin /><input value={destination} onChange={event => setDestination(event.target.value)} onKeyDown={event => event.key === 'Enter' && locateDestination()} placeholder="Para onde você vai?" /><button disabled={mapBusy} onClick={locateDestination}>{mapBusy ? 'Buscando...' : 'Buscar →'}</button></div>
             <small>♿ Rotas acessíveis　　⌖ Alertas inteligentes　　▣ Vagas disponíveis</small></div>
-            <MapArt center={mapCenter} title="Mapa de São Paulo" />
+            <MapArt center={mapCenter} title="Mapa de São Paulo" places={places} userLocation={userLocation} routeCoordinates={routeCoordinates} />
           </section>
           <div className="stats"><Stat n={places.reduce((sum, place) => sum + place.spots, 0)} t="Vagas no mapa" /><Stat n={places.filter(place => place.access).length} t="Vagas acessíveis" /><Stat n={alerts.length} t="Alertas ativos" /><Stat n="04" t="Rotas inclusivas" /></div>
           <Section title="Estacionamentos próximos" action="Ver mapa completo" click={() => setTab('Mapa')} />
-          <div className="columns"><div>{places.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>São Paulo · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" /><Legend /></div></div>
+          <div className="columns"><div>{places.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>Vagas disponíveis · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" places={places} userLocation={userLocation} routeCoordinates={routeCoordinates} /><Legend /></div></div>
           <Section title="Alertas recentes" action="Ver todos" click={() => setTab('Alertas na via')} />
           <div className="alerts">{alerts.slice(0, 3).map(alert => <Alert key={alert.id} a={alert} />)}</div>
           <div className="inclusive"><Accessibility /><div><label>INCLUSIVE MOBILITY</label><h2>Não basta chegar. É preciso que todos consigam chegar.</h2><p>Vagas acessíveis, rotas sem barreiras e recursos de acessibilidade.</p></div><button onClick={() => setTab('Rotas acessíveis')}>Explorar acessibilidade →</button></div>
         </>}
 
-        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>Mapa de disponibilidade <small>OpenStreetMap · São Paulo</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" /><Legend /></div>
+        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>Vagas próximas e sua rota <small>Vagas disponíveis · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={filteredPlaces} userLocation={userLocation} routeCoordinates={routeCoordinates} /><Legend />{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
           <div className="panel"><h3>Vagas próximas</h3><div className="search"><Search /><input placeholder="Buscar estacionamento" value={query} onChange={event => setQuery(event.target.value)} /></div>
             <label className="filter"><span><Accessibility /> Mostrar apenas acessíveis</span><input type="checkbox" checked={onlyAccessible} onChange={event => setOnlyAccessible(event.target.checked)} /></label>
             {filteredPlaces.map(card)}
@@ -320,12 +350,71 @@ export default function App() {
   </div>;
 }
 
-function MapArt({ center, title }) {
-  const [latitude, longitude] = center;
-  const delta = 0.012;
-  const bounds = `${longitude - delta},${latitude - delta},${longitude + delta},${latitude + delta}`;
-  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${bounds}&layer=mapnik&marker=${latitude},${longitude}`;
-  return <div className="map-frame"><iframe title={title} src={mapUrl} loading="lazy" referrerPolicy="no-referrer" /><a href={`https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=16/${latitude}/${longitude}`} target="_blank" rel="noreferrer">Abrir mapa ↗</a></div>;
+function MapArt({ center, title, places = [], userLocation, routeCoordinates = [] }) {
+  const mapElement = useRef(null);
+  const mapInstance = useRef(null);
+
+  useEffect(() => {
+    if (!mapElement.current) return undefined;
+    const map = L.map(mapElement.current).setView(center, 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19
+    }).addTo(map);
+    mapInstance.current = map;
+    return () => {
+      map.remove();
+      mapInstance.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map) return;
+    const layers = L.featureGroup().addTo(map);
+    places.filter(place => place.spots > 0).forEach(place => {
+      const marker = L.marker(place.coordinates, {
+        icon: L.divIcon({
+          className: 'parking-map-icon',
+          html: `<span>${place.spots}</span>`,
+          iconSize: [36, 36],
+          iconAnchor: [18, 18]
+        })
+      }).addTo(layers);
+      const popup = document.createElement('div');
+      const name = document.createElement('strong');
+      name.textContent = place.n;
+      const detail = document.createElement('p');
+      detail.textContent = `${place.spots} vagas disponíveis · ${place.price}`;
+      const address = document.createElement('small');
+      address.textContent = place.a;
+      popup.append(name, detail, address);
+      marker.bindPopup(popup);
+    });
+
+    if (userLocation) {
+      L.marker(userLocation, {
+        icon: L.divIcon({ className: 'user-map-icon', html: '<span></span>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+        zIndexOffset: 1000
+      }).bindPopup('Você está aqui').addTo(layers);
+    }
+
+    if (routeCoordinates.length > 0) {
+      L.polyline(routeCoordinates, { color: '#f22d85', weight: 5, opacity: 0.9 }).addTo(layers);
+      L.marker(routeCoordinates[routeCoordinates.length - 1], {
+        icon: L.divIcon({ className: 'destination-map-icon', html: '<span>Destino</span>', iconSize: [66, 26], iconAnchor: [33, 13] })
+      }).addTo(layers);
+    }
+
+    if (layers.getLayers().length > 0) {
+      map.fitBounds(layers.getBounds().pad(0.18), { maxZoom: routeCoordinates.length > 0 ? 14 : 16 });
+    } else {
+      map.setView(center, 15);
+    }
+    return () => map.removeLayer(layers);
+  }, [center, places, userLocation, routeCoordinates]);
+
+  return <div className="map-frame" role="region" aria-label={title}><div className="leaflet-map" ref={mapElement} /></div>;
 }
 
 function Stat({ n, t }) { return <div className="stat"><b>{n}</b><small>{t}</small></div>; }
