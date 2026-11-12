@@ -9,7 +9,7 @@ export default function Header() {
   const toggle = k => setOpen(o => (o === k ? null : k))
   return (
     <header className="topbar">
-      <input className="search" type="search" aria-label="Para onde você vai?" placeholder="Para onde você vai?" />
+      <div className="searchbox"><span aria-hidden>⌕</span><input type="search" aria-label="Para onde você vai?" placeholder="Para onde você vai?" /><kbd>⌘K</kbd></div>
       <select aria-label="Localização" value={location} onChange={e => setLocation(e.target.value)}>
         {['Pinheiros, São Paulo', 'Vila Madalena, São Paulo', 'Moema, São Paulo'].map(l => <option key={l}>{l}</option>)}
       </select>

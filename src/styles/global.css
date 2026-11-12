@@ -45,3 +45,39 @@ h1,h2,h3{margin:.2em 0}h1{font-size:1.7rem}h2{font-size:1.1rem}h3{font-size:1rem
 @media(max-width:1000px){.two,.three,.side{grid-template-columns:1fr}.sidebar{width:72px}.sidebar em,.logo b{display:none}}
 @media(max-width:700px){.shell{flex-direction:column}.sidebar{position:fixed;bottom:0;top:auto;height:auto;width:100%;flex-direction:row;z-index:30;padding:4px;border-top:1px solid var(--bd)}.sidebar .logo,.sidebar .user{display:none}.sidebar ul{display:flex;margin:0;overflow-x:auto}.content{padding-bottom:70px}.park{flex-direction:column}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== Tema "Pane": vidro escuro, cantos grandes, painéis flutuantes ===== */
+:root{--bg:#08090d;--s1:rgba(255,255,255,.035);--s2:rgba(255,255,255,.07);--bd:rgba(255,255,255,.14);--g:linear-gradient(180deg,#27d8b6,#0fa88a)}
+[data-theme=light]{--bg:#eef2f7;--s1:rgba(255,255,255,.8);--s2:rgba(0,0,0,.05);--bd:rgba(0,0,0,.14)}
+body{background:radial-gradient(900px 500px at 75% -10%,rgba(23,195,162,.09),transparent),var(--bg);font-family:Inter,system-ui,'Segoe UI',sans-serif}
+.shell{padding:12px;gap:16px}
+.sidebar{border-radius:32px;background:var(--s1);backdrop-filter:blur(20px);height:calc(100vh - 24px);top:12px;width:252px;border:1px solid var(--bd)}
+.sidebar a{border-radius:99px;padding:10px 14px}.sidebar a.active{background:var(--s2);color:var(--tx);border:1px solid var(--bd)}
+.pinned small{color:var(--mu);font-size:.7rem;letter-spacing:.08em}.pinned p{display:flex;gap:10px;align-items:center;margin:8px 4px;color:var(--mu)}.pinned i{width:9px;height:9px;border-radius:50%}
+.user{border-top:1px solid var(--bd);margin-top:8px}
+.logo b{font-size:1.2rem;letter-spacing:-.02em}.logo-mark{border-radius:12px;background:var(--g);width:38px;height:38px}
+.topbar{position:absolute;right:12px;top:6px;border:1px solid var(--bd);border-radius:99px;background:var(--s1);padding:8px 14px;flex-wrap:nowrap;z-index:15;width:min(560px,60%)}
+.content{position:relative}.topbar select{max-width:150px;border-radius:99px}
+.searchbox{flex:1;display:flex;gap:8px;align-items:center;background:var(--s2);border-radius:99px;padding:2px 12px;min-width:0}
+.searchbox input{background:none;border:0;flex:1;min-width:0;padding:8px 0}.searchbox kbd{font-size:.72rem;background:var(--s2);border-radius:8px;padding:2px 8px;color:var(--mu)}
+.icon{border-radius:50%;background:transparent;border:0}.icon:hover{background:var(--s2)}
+.hero{font-size:clamp(2.2rem,4.2vw,3.6rem);font-weight:800;letter-spacing:-.045em;line-height:1.05;margin:4px 0 8px}h1{letter-spacing:-.03em;font-weight:800}
+.page{padding:12px 20px 24px}.card{border-radius:32px;padding:22px;border:1px solid var(--bd);background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 44px rgba(0,0,0,.35)}
+[data-theme=light] .card{background:var(--s1);box-shadow:0 10px 30px rgba(0,0,0,.08)}
+.btn{background:var(--g);border-radius:99px;padding:11px 20px;box-shadow:0 8px 24px rgba(23,195,162,.35)}.btn.ghost{background:var(--s2);box-shadow:none}.btn.wide{width:100%;margin-top:10px}
+.top{margin:8px 0 18px;align-items:flex-end}.chips2{display:flex;gap:10px;flex-wrap:wrap}
+.chipstat{border:1px solid var(--bd);border-radius:20px;padding:10px 16px;background:var(--s1);min-width:110px}.chipstat small{color:var(--mu);display:block;font-size:.72rem}.chipstat b{font-size:1.4rem}
+.g3{grid-template-columns:repeat(3,1fr)}.g2{grid-template-columns:1fr 1.5fr;margin:14px 0}
+.rings{display:flex;gap:18px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap}.legend2 div{border-left:2px solid;padding-left:10px;margin:8px 0}.legend2 small{display:block;color:var(--mu);font-size:.74rem}.legend2 b{font-size:1.5rem}.legend2 span{font-size:.85rem;color:var(--mu);font-weight:400;margin-left:4px}
+.hl{background:linear-gradient(180deg,rgba(90,169,255,.18),rgba(90,169,255,.07));border:1px solid rgba(90,169,255,.3);border-radius:22px;padding:14px;margin:12px 0}.hl small{color:var(--tx)}
+.li{display:flex;gap:10px;align-items:center;padding:8px 0}.li i{width:3px;height:20px;border-radius:2px}.li span{flex:1}.li small{color:var(--mu)}
+.seg{display:flex;background:var(--s2);border-radius:99px;padding:3px}.seg button{background:none;border:0;color:var(--mu);border-radius:99px;padding:5px 10px;font-size:.78rem;cursor:pointer}.seg .on{background:var(--s1);color:var(--tx);border:1px solid var(--bd)}
+.nav{gap:16px;margin:16px 0}.eta{width:104px;height:104px;border-radius:50%;border:6px solid var(--s2);border-top-color:var(--pr);display:grid;place-content:center;text-align:center;flex:none}.eta b{font-size:1.5rem}.eta small{font-size:.65rem;color:var(--mu)}
+.foot{background:var(--s2);border-radius:18px;padding:12px}.bar{height:6px;background:var(--s2);border-radius:9px;margin-top:8px}.bar i{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,var(--warn),var(--pr))}
+.task{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--bd)}.circ{width:24px;height:24px;border:2px solid var(--mu);border-radius:50%;flex:none}.pill{background:var(--s2);border-radius:99px;padding:1px 10px;font-size:.75rem}
+.sev{border-radius:8px;padding:3px 10px;font-size:.75rem;background:rgba(246,196,83,.15);color:var(--warn)}.sev.grave{background:rgba(239,91,91,.15);color:var(--dan)}.sev.leve{background:rgba(23,195,162,.15);color:var(--pr)}
+.big{font-size:2.2rem;font-weight:800}.up{color:var(--pr)}
+.cols{display:flex;gap:12px;height:220px;margin-top:10px}.cols div{flex:1;background:var(--s2);border-radius:20px 20px 0 0;position:relative;display:flex;align-items:flex-end}.cols i{display:block;width:100%;background:linear-gradient(180deg,#6fb5ff,#3b82f6);border-radius:16px 16px 0 0}.cols small{position:absolute;bottom:6px;left:0;right:0;text-align:center;color:var(--tx)}
+.map{border-radius:24px}
+@media(max-width:1000px){.g3,.g2{grid-template-columns:1fr}.topbar{position:static;width:auto;margin:6px 12px}.sidebar{width:76px}.pinned,.user em{display:none}}
+@media(max-width:700px){.shell{padding:0}.sidebar{border-radius:24px 24px 0 0;left:0;bottom:0}.topbar{flex-wrap:wrap}}
