@@ -9,6 +9,7 @@
 }
 
 .parking-map-icon,
+.osm-parking-map-icon,
 .user-map-icon,
 .destination-map-icon {
   background: none;
@@ -16,6 +17,7 @@
 }
 
 .parking-map-icon span {
+  position: relative;
   display: grid;
   width: 36px;
   height: 36px;
@@ -27,6 +29,49 @@
   color: white;
   font-size: 12px;
   font-weight: 700;
+}
+
+.parking-map-icon.demo-street-map-icon span {
+  background: #2867c7;
+}
+
+.parking-map-icon.demo-parking-map-icon span {
+  background: #168256;
+}
+
+.parking-map-icon .demo-access-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid white;
+  border-radius: 50%;
+  background: #7545c5;
+  color: white;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1;
+}
+
+.osm-parking-map-icon span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 2px solid white;
+  border-radius: 50%;
+  background: #2867c7;
+  box-shadow: 0 2px 8px #0009;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.osm-accessible-map-icon span {
+  background: #7545c5;
 }
 
 .user-map-icon span {
@@ -72,4 +117,72 @@
 .map-status {
   color: #83dcb1;
   font-size: 10px;
+}
+
+.destination-search {
+  position: relative;
+  z-index: 1000;
+}
+
+.address-suggestions {
+  position: absolute;
+  top: calc(100% - 16px);
+  right: 0;
+  left: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #41435f;
+  border-radius: 9px;
+  background: #111629;
+  box-shadow: 0 8px 24px #000b;
+}
+
+.suggestion-region,
+.suggestion-message {
+  padding: 9px 12px;
+  color: #929ab2;
+  font-size: 10px;
+}
+
+.result-group-title {
+  margin: 14px 0 8px;
+  color: #aeb8d0;
+  font-size: 10px;
+}
+
+.suggestion-region {
+  border-bottom: 1px solid #282e45;
+  color: #83dcb1;
+}
+
+.address-suggestion {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #f5f5fb;
+  text-align: left;
+}
+
+.address-suggestion:hover,
+.address-suggestion:focus-visible {
+  background: #25213a;
+  outline: none;
+}
+
+.address-suggestion strong,
+.address-suggestion small {
+  display: block;
+}
+
+.address-suggestion strong {
+  font-size: 11px;
+}
+
+.address-suggestion small {
+  margin-top: 4px;
+  color: #929ab2;
+  font-size: 9px;
 }
