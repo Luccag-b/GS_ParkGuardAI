@@ -37,26 +37,57 @@ function offsetCoordinates([latitude, longitude], meters, bearingDegrees) {
   return [latitude2 * 180 / Math.PI, longitudeDegrees];
 }
 
-function createDemoMapPlaces(center) {
-  const rings = [260, 580, 900];
-  return rings.flatMap((distance, ringIndex) => Array.from({ length: 8 }, (_, pointIndex) => {
-    const index = ringIndex * 8 + pointIndex;
-    const type = (ringIndex + pointIndex) % 2 === 0 ? 'street' : 'parking';
-    const accessible = pointIndex === 0 || pointIndex === 4;
-    const typeLabel = type === 'street' ? 'Vaga de rua' : 'Estacionamento';
+function createDemoMapPlaces(center, roadLines = []) {
+  const streetCoordinateKeys = new Set();
+  const streetCoordinates = roadLines
+    .flatMap(line => line)
+    .map(point => [point.lat, point.lon])
+    .filter(point => {
+      if (!Number.isFinite(point[0]) || !Number.isFinite(point[1]) || distanceInMeters(center, point) > destinationRadius) return false;
+      const key = `${point[0].toFixed(5)},${point[1].toFixed(5)}`;
+      if (streetCoordinateKeys.has(key)) return false;
+      streetCoordinateKeys.add(key);
+      return true;
+    })
+    .sort((first, second) => Math.atan2(first[1] - center[1], first[0] - center[0]) - Math.atan2(second[1] - center[1], second[0] - center[0]));
+  const streetSlots = streetCoordinates.length <= 12
+    ? streetCoordinates
+    : Array.from({ length: 12 }, (_, index) => streetCoordinates[Math.floor(index * streetCoordinates.length / 12)]);
+  const streetPlaces = streetSlots.map((coordinates, index) => {
+    const distance = distanceInMeters(center, coordinates);
+    const accessible = index % 4 === 0;
     return {
-      id: `demo-${index + 1}`,
-      n: `${typeLabel} ilustrativa ${String(index + 1).padStart(2, '0')}`,
-      a: `Ponto ilustrativo a ${distance} m do destino`,
+      id: `demo-street-${index + 1}`,
+      n: `Vaga de rua ilustrativa ${String(index + 1).padStart(2, '0')}`,
+      a: `Trecho de via mapeado a ${formatDistance(distance)} do destino`,
       d: formatDistance(distance),
       price: 'Demonstração',
       spots: 1,
       access: accessible,
-      type,
+      availability: index % 2 === 0 ? 'free' : 'occupied',
+      type: 'street',
       isGeneratedDemo: true,
-      coordinates: offsetCoordinates(center, distance, pointIndex * 45 + ringIndex * 22.5)
+      coordinates
     };
-  }));
+  });
+  const parkingPlaces = [260, 580, 900].flatMap((distance, ringIndex) =>
+    Array.from({ length: 4 }, (_, pointIndex) => {
+      const index = ringIndex * 4 + pointIndex;
+      return {
+        id: `demo-parking-${index + 1}`,
+        n: `Estacionamento ilustrativo ${String(index + 1).padStart(2, '0')}`,
+        a: `Ponto ilustrativo a ${distance} m do destino`,
+        d: formatDistance(distance),
+        price: 'Demonstração',
+        spots: 1,
+        access: pointIndex === 0,
+        type: 'parking',
+        isGeneratedDemo: true,
+        coordinates: offsetCoordinates(center, distance, pointIndex * 90 + ringIndex * 22.5)
+      };
+    })
+  );
+  return [...streetPlaces, ...parkingPlaces];
 }
 
 function distanceInMeters([lat1, lon1], [lat2, lon2]) {
@@ -226,6 +257,7 @@ export default function App() {
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
   const [destinationCoordinates, setDestinationCoordinates] = useState(null);
   const [osmParking, setOsmParking] = useState([]);
+  const [osmRoads, setOsmRoads] = useState([]);
   const [osmParkingLoading, setOsmParkingLoading] = useState(false);
   const [osmParkingError, setOsmParkingError] = useState('');
   const osmRequestId = useRef(0);
@@ -274,10 +306,11 @@ export default function App() {
     osmRequestId.current = requestId;
     osmRequestController.current?.abort();
     setOsmParking([]);
+    setOsmRoads([]);
     setOsmParkingError('');
     setOsmParkingLoading(true);
     const [latitude, longitude] = coordinates;
-    const query = `[out:json][timeout:15];(nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude}););out center tags;`;
+    const query = `[out:json][timeout:15];nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude});out center tags;way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street|service)$"](around:${destinationRadius},${latitude},${longitude});out geom;`;
     const controller = new AbortController();
     osmRequestController.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 18000);
@@ -289,7 +322,7 @@ export default function App() {
         body: `data=${encodeURIComponent(query)}`,
         signal: controller.signal
       });
-      if (!response.ok) throw new Error('O OpenStreetMap não conseguiu carregar os estacionamentos agora.');
+      if (!response.ok) throw new Error('O OpenStreetMap não conseguiu carregar estacionamentos e vias agora.');
       const data = await response.json();
       if (!Array.isArray(data.elements)) throw new Error('A resposta do OpenStreetMap veio em um formato inválido.');
 
@@ -317,7 +350,17 @@ export default function App() {
         };
       }).filter(Boolean);
 
-      if (requestId === osmRequestId.current) setOsmParking(locations);
+      const roads = data.elements
+        .filter(element => element.tags?.highway && Array.isArray(element.geometry))
+        .map(element => element.geometry.filter(point =>
+          Number.isFinite(point.lat) && Number.isFinite(point.lon)
+        ))
+        .filter(geometry => geometry.length > 1);
+
+      if (requestId === osmRequestId.current) {
+        setOsmParking(locations);
+        setOsmRoads(roads);
+      }
     } catch (parkingError) {
       if (requestId === osmRequestId.current) {
         setOsmParkingError(parkingError.name === 'AbortError'
@@ -407,12 +450,13 @@ export default function App() {
     (!onlyAccessible || place.accessible)
       && `${place.name} ${place.address}`.toLowerCase().includes(query.toLowerCase())
   );
-  const demoMapPlaces = destinationCoordinates
-    ? createDemoMapPlaces(destinationCoordinates).filter(place =>
+  const allDemoMapPlaces = destinationCoordinates
+    ? createDemoMapPlaces(destinationCoordinates, osmRoads)
+    : [];
+  const demoMapPlaces = allDemoMapPlaces.filter(place =>
       (!onlyAccessible || place.access)
         && `${place.n} ${place.a}`.toLowerCase().includes(query.toLowerCase())
-    )
-    : [];
+    );
   const mapPlaces = destinationCoordinates ? [...filteredPlaces, ...demoMapPlaces] : filteredPlaces;
   const nav = [['Início', Home], ['Mapa', Map], ['Alertas na via', TriangleAlert], ['Rotas acessíveis', Accessibility], ['Meus trajetos', Route], ['Perfil', User]];
   const card = place => <article className={`parking ${selected === place.id ? 'sel' : ''}`} key={place.id} onClick={() => setSelected(place.id)}>
@@ -434,7 +478,7 @@ export default function App() {
     <div className="price"><b>OpenStreetMap</b><small>{place.capacity ? `Capacidade: ${place.capacity}` : 'Vagas livres não informadas'}</small></div>
   </article>;
   const destinationResults = <>
-    <p className="map-status">O mapa inclui {demoMapPlaces.length} pontos ilustrativos: R = vaga de rua, P = estacionamento e ♿ = acessibilidade indicada. Eles não representam vagas reais ou livres.</p>
+    <p className="map-status">Os traços azuis e vermelhos ficam sobre vias mapeadas no OpenStreetMap, dentro do raio de 1 km, e mostram vagas livres ou ocupadas apenas na simulação. Passe o cursor ou toque nos pontos para ver seus nomes; eles não indicam disponibilidade real. ♿ indica acessibilidade de demonstração.</p>
     {filteredPlaces.length > 0 && <>
       <h4 className="result-group-title">Vagas cadastradas (demonstração)</h4>
       {filteredPlaces.map(card)}
@@ -443,8 +487,10 @@ export default function App() {
       <h4 className="result-group-title">Estacionamentos mapeados no OpenStreetMap</h4>
       {filteredOsmParking.map(osmCard)}
     </>}
-    {osmParkingLoading && <p className="map-status">Buscando estacionamentos no OpenStreetMap...</p>}
+    {osmParkingLoading && <p className="map-status">Buscando estacionamentos e vias mapeadas no OpenStreetMap...</p>}
     {osmParkingError && <p className="map-status" role="alert">{osmParkingError}</p>}
+    {!osmParkingLoading && destinationCoordinates && !allDemoMapPlaces.some(place => place.type === 'street')
+      && <p className="map-status">Nenhuma via mapeada disponível neste raio para posicionar traços ilustrativos.</p>}
     {!osmParkingLoading && !osmParkingError && filteredPlaces.length === 0 && filteredOsmParking.length === 0
       && <p className="map-status">{osmParking.length > 0 ? 'Nenhum local corresponde aos filtros.' : 'Nenhuma vaga ou estacionamento encontrado neste raio.'}</p>}
   </>;
@@ -497,7 +543,7 @@ export default function App() {
           <div className="inclusive"><Accessibility /><div><label>INCLUSIVE MOBILITY</label><h2>Não basta chegar. É preciso que todos consigam chegar.</h2><p>Vagas acessíveis, rotas sem barreiras e recursos de acessibilidade.</p></div><button onClick={() => setTab('Rotas acessíveis')}>Explorar acessibilidade →</button></div>
         </>}
 
-        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>{destinationCoordinates ? 'Vagas e estacionamentos em até 1 km do destino' : 'Vagas próximas e sua rota'} <small>Ruas, estacionamentos e acessibilidade · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={mapPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} />{destinationCoordinates && <p className="map-status">R e P identificam pontos ilustrativos; o selo ♿ indica acessibilidade de demonstração. Nenhum ponto ilustrativo confirma vaga real ou livre.</p>}{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
+        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>{destinationCoordinates ? 'Vagas e estacionamentos em até 1 km do destino' : 'Vagas próximas e sua rota'} <small>Ruas, estacionamentos e acessibilidade · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={mapPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} />{destinationCoordinates && <p className="map-status">Os traços de rua seguem vias mapeadas no OpenStreetMap dentro do raio de 1 km. Os nomes aparecem ao passar o cursor ou tocar nos pontos; azul = livre e vermelho = ocupada apenas na simulação. Nenhum ponto confirma disponibilidade real. ♿ indica acessibilidade de demonstração.</p>}{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
           <div className="panel"><h3>{destinationCoordinates ? 'Locais em até 1 km do destino' : 'Vagas próximas'}</h3><div className="search"><Search /><input placeholder="Buscar estacionamento" value={query} onChange={event => setQuery(event.target.value)} /></div>
             <label className="filter"><span><Accessibility /> Mostrar apenas acessíveis</span><input type="checkbox" checked={onlyAccessible} onChange={event => setOnlyAccessible(event.target.checked)} /></label>
             {destinationCoordinates
@@ -550,62 +596,13 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
   const [suggestionsError, setSuggestionsError] = useState('');
   const [hasSearched, setHasSearched] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const isDefaultRegion = Math.abs(center[0] + 23.5614) < 0.001 && Math.abs(center[1] + 46.6559) < 0.001;
-  const [region, setRegion] = useState(() => isDefaultRegion ? { city: 'São Paulo', uf: 'SP' } : null);
-  const [regionLoading, setRegionLoading] = useState(!isDefaultRegion);
-  const [regionError, setRegionError] = useState('');
   const query = value.trim();
   const postalCode = query.replace(/\D/g, '');
   const isPostalCode = /^\d{8}$/.test(postalCode);
 
   useEffect(() => {
-    if (isDefaultRegion) {
-      setRegion({ city: 'São Paulo', uf: 'SP' });
-      setRegionLoading(false);
-      setRegionError('');
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    let requestTimedOut = false;
-    setRegion(null);
-    setRegionLoading(true);
-    setRegionError('');
-    const timeout = window.setTimeout(() => {
-      requestTimedOut = true;
-      controller.abort();
-    }, 8000);
-
-    const resolveRegion = async () => {
-      try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${center[0]}&lon=${center[1]}&zoom=10&addressdetails=1&accept-language=pt-BR`;
-        const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) throw new Error('Não foi possível identificar a cidade desta região.');
-        const result = await response.json();
-        const address = result.address || {};
-        const city = address.city || address.town || address.municipality || address.village;
-        const uf = (address['ISO3166-2-lvl4'] || address.state_code || '').split('-').pop().toUpperCase();
-        if (!city || uf.length !== 2) throw new Error('Não foi possível identificar a cidade e a UF deste mapa.');
-        setRegion({ city, uf });
-      } catch (regionError) {
-        if (requestTimedOut) setRegionError('A identificação da região demorou demais. Tente novamente.');
-        else if (!controller.signal.aborted) setRegionError(regionError.message || 'Não foi possível identificar a região do mapa.');
-      } finally {
-        window.clearTimeout(timeout);
-        if (!controller.signal.aborted || requestTimedOut) setRegionLoading(false);
-      }
-    };
-
-    resolveRegion();
-    return () => {
-      window.clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [center, isDefaultRegion]);
-
-  useEffect(() => {
     setSuggestionsLoading(false);
-    if (selected || query.length < 3 || (!isPostalCode && !region)) {
+    if (selected || query.length < 3) {
       setSuggestions([]);
       setSuggestionsError('');
       setHasSearched(false);
@@ -627,28 +624,54 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
       try {
         const url = isPostalCode
           ? `https://viacep.com.br/ws/${postalCode}/json/`
-          : `https://viacep.com.br/ws/${encodeURIComponent(region.uf)}/${encodeURIComponent(region.city)}/${encodeURIComponent(query)}/json/`;
+          : `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=15&lat=${center[0]}&lon=${center[1]}`;
         const response = await fetch(url, { signal: controller.signal });
-        if (!response.ok) throw new Error('O ViaCEP não conseguiu buscar endereços agora.');
+        if (!response.ok) throw new Error('O serviço de endereços não conseguiu buscar lugares agora.');
         const result = await response.json();
-        const records = Array.isArray(result) ? result : result?.erro ? [] : [result];
+        const options = isPostalCode
+          ? (Array.isArray(result) ? result : result?.erro ? [] : [result])
+            .slice(0, 15)
+            .map((address, index) => {
+              if (!address?.cep) return null;
+              const cityState = `${address.localidade}/${address.uf}`;
+              const title = address.logradouro || address.bairro || `CEP ${address.cep}`;
+              const details = [address.complemento, address.bairro, cityState, `CEP ${address.cep}`]
+                .filter(Boolean)
+                .filter(part => part !== title);
 
-        const options = records.slice(0, 10).map((address, index) => {
-          if (!address?.cep) return null;
-          const cityState = `${address.localidade}/${address.uf}`;
-          const title = address.logradouro || address.bairro || `CEP ${address.cep}`;
-          const details = [address.complemento, address.bairro, cityState, `CEP ${address.cep}`]
+              return {
+                id: `${address.cep}-${index}`,
+                label: [title, ...details].join(', '),
+                detail: details.join(', '),
+                geocodeQuery: [address.logradouro, address.bairro, address.localidade, address.uf, 'Brasil'].filter(Boolean).join(', '),
+                coordinates: null
+              };
+            })
             .filter(Boolean)
-            .filter(part => part !== title);
+          : (Array.isArray(result.features) ? result.features : [])
+            .slice(0, 15)
+            .map((feature, index) => {
+              const properties = feature.properties || {};
+              const [longitude, latitude] = feature.geometry?.coordinates || [];
+              if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+              const street = [properties.street, properties.housenumber].filter(Boolean).join(', ');
+              const title = properties.name || street || properties.city || properties.county;
+              if (!title) return null;
+              const cityState = [properties.city || properties.county, properties.state].filter(Boolean).join('/');
+              const details = [properties.district || properties.suburb, cityState, properties.postcode, properties.country]
+                .filter(Boolean)
+                .filter(part => part !== title);
+              const label = [title, ...details].join(', ');
 
-          return {
-            id: `${address.cep}-${index}`,
-            label: [title, ...details].join(', '),
-            detail: details.join(', '),
-            geocodeQuery: [address.logradouro, address.bairro, address.localidade, address.uf, 'Brasil'].filter(Boolean).join(', '),
-            coordinates: null
-          };
-        }).filter(Boolean);
+              return {
+                id: `${properties.osm_type || 'place'}-${properties.osm_id || `${latitude}-${longitude}-${index}`}`,
+                label,
+                detail: details.join(', '),
+                geocodeQuery: label,
+                coordinates: [latitude, longitude]
+              };
+            })
+            .filter(Boolean);
 
         setSuggestions(options);
         setHasSearched(true);
@@ -701,13 +724,10 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
       <button disabled={busy} onClick={() => { setIsOpen(false); onSearch(); }}>{busy ? 'Buscando...' : buttonLabel}</button>
     </div>
     {isOpen && value.trim().length >= 3 && <div className="address-suggestions" id="destination-suggestions" role="listbox">
-      <div className="suggestion-region">Sugestões próximas à região do mapa</div>
-      {!isPostalCode && regionLoading && <div className="suggestion-message">Identificando cidade e estado...</div>}
-      {!isPostalCode && regionError && <div className="suggestion-message" role="alert">{regionError}</div>}
-      {!isPostalCode && !regionLoading && !regionError && !region && <div className="suggestion-message">Não foi possível identificar a região deste mapa.</div>}
-      {(isPostalCode || region) && suggestionsLoading && <div className="suggestion-message">Buscando endereços no ViaCEP...</div>}
+      <div className="suggestion-region">{isPostalCode ? 'Endereços encontrados pelo CEP' : 'Lugares encontrados perto do mapa'}</div>
+      {suggestionsLoading && <div className="suggestion-message">{isPostalCode ? 'Buscando endereço no ViaCEP...' : 'Buscando lugares...'}</div>}
       {suggestionsError && <div className="suggestion-message" role="alert">{suggestionsError}</div>}
-      {(isPostalCode || region) && !suggestionsLoading && !suggestionsError && hasSearched && suggestions.length === 0 && <div className="suggestion-message">{isPostalCode ? 'CEP não encontrado.' : 'Nenhum endereço encontrado nesta cidade.'}</div>}
+      {!suggestionsLoading && !suggestionsError && hasSearched && suggestions.length === 0 && <div className="suggestion-message">{isPostalCode ? 'CEP não encontrado.' : 'Nenhum lugar encontrado perto desta região.'}</div>}
       {suggestions.map(suggestion => <button
         type="button"
         className="address-suggestion"
@@ -750,20 +770,31 @@ function MapArt({ center, title, places = [], osmParking = [], userLocation, rou
     places.filter(place => place.spots > 0).forEach(place => {
       const isStreet = place.type === 'street';
       const typeLabel = isStreet ? 'Vaga de rua' : 'Estacionamento';
+      const isGeneratedDemo = place.isGeneratedDemo;
+      const markerClass = isStreet
+        ? `parking-map-icon demo-street-slot-icon ${place.availability}-slot-icon`
+        : 'parking-map-icon demo-parking-map-icon';
       const marker = L.marker(place.coordinates, {
         icon: L.divIcon({
-          className: `parking-map-icon demo-${isStreet ? 'street' : 'parking'}-map-icon`,
-          html: `<span>${isStreet ? 'R' : 'P'}${place.access ? '<i class="demo-access-badge">♿</i>' : ''}</span>`,
-          iconSize: [36, 36],
-          iconAnchor: [18, 18]
+          className: markerClass,
+          html: isStreet
+            ? '<span aria-hidden="true"></span>'
+            : `<span>P${place.access ? '<i class="demo-access-badge">♿</i>' : ''}</span>`,
+          iconSize: isStreet ? [36, 16] : [36, 36],
+          iconAnchor: isStreet ? [18, 8] : [18, 18]
         })
       }).addTo(layers);
+      const tooltip = document.createElement('span');
+      tooltip.textContent = place.n;
+      marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -6] });
       const popup = document.createElement('div');
       const name = document.createElement('strong');
       name.textContent = place.n;
       const detail = document.createElement('p');
-      detail.textContent = place.isGeneratedDemo
-        ? `${typeLabel} ilustrativa · não representa vaga confirmada ou livre`
+      detail.textContent = isGeneratedDemo && isStreet
+        ? `${typeLabel} ilustrativa · ${place.availability === 'free' ? 'livre' : 'ocupada'} na simulação; não representa disponibilidade real`
+        : isGeneratedDemo
+          ? `${typeLabel} ilustrativo · ponto de demonstração, não confirma local ou disponibilidade real`
         : `${typeLabel} · ${place.spots} vagas em dado de demonstração · ${place.price}`;
       const address = document.createElement('small');
       address.textContent = place.a;
@@ -859,7 +890,7 @@ function Note({ title, children }) { return <div className="note"><b>{title}</b>
 function Legend({ osm = false }) {
   return <div className="legend">
     {osm
-      ? <><span>R = Vaga de rua · P = Estacionamento (demonstração)</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>P = Estacionamento mapeado no OSM</span><span>♿ = Acessibilidade mapeada no OSM</span><span>Ruas do OpenStreetMap</span></>
-      : <><span>P = Estacionamento (demonstração)</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>⚠ Alerta</span></>}
+      ? <><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span><span>P = Estacionamento ilustrativo</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>P = Estacionamento mapeado no OSM</span><span>♿ = Acessibilidade mapeada no OSM</span><span>Traços posicionados em vias do OpenStreetMap no raio</span></>
+      : <><span>P = Estacionamento ilustrativo</span><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>⚠ Alerta</span></>}
   </div>;
 }

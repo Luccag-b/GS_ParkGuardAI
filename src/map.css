@@ -31,8 +31,30 @@
   font-weight: 700;
 }
 
-.parking-map-icon.demo-street-map-icon span {
-  background: #2867c7;
+.parking-map-icon.demo-street-slot-icon {
+  width: 36px !important;
+  height: 16px !important;
+  border: 0;
+  background: none;
+}
+
+.parking-map-icon.demo-street-slot-icon span {
+  display: block;
+  width: 28px;
+  height: 7px;
+  border: 1px solid white;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px #0009;
+}
+
+.parking-map-icon.free-slot-icon span,
+.street-slot-key.free-slot-key {
+  background: repeating-linear-gradient(90deg, #2585ff 0 7px, transparent 7px 10px);
+}
+
+.parking-map-icon.occupied-slot-icon span,
+.street-slot-key.occupied-slot-key {
+  background: repeating-linear-gradient(90deg, #ef4444 0 7px, transparent 7px 10px);
 }
 
 .parking-map-icon.demo-parking-map-icon span {
@@ -148,6 +170,15 @@
   margin: 14px 0 8px;
   color: #aeb8d0;
   font-size: 10px;
+}
+
+.street-slot-key {
+  display: inline-block;
+  width: 28px;
+  height: 7px;
+  border: 1px solid white;
+  border-radius: 4px;
+  vertical-align: middle;
 }
 
 .suggestion-region {
