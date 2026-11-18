@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './map.css';
 import {
-  Accessibility, Bell, CarFront, Eye, Home, Map, MapPin, Menu, Plus, Search,
+  Accessibility, Bell, CarFront, CircleCheck, Eye, Home, Info, Map, MapPin, Menu, Plus, Search,
   ShieldCheck, TriangleAlert, User, Volume2, X, Route
 } from 'lucide-react';
 import './auth.css';
@@ -564,7 +564,10 @@ export default function App() {
               ['contrast', 'Alto contraste', Eye]
             ].map(([key, label, Icon]) => <label className="pref" key={key}><Icon />{label}<input type="checkbox" checked={Boolean(profile[key])} onChange={event => setProfile(current => ({ ...current, [key]: event.target.checked }))} /></label>)}
           </div><div className="panel"><h3>Planejar rota acessível</h3>{destinationSearch('Ver no mapa')}<MapArt center={mapCenter} title="Mapa para planejar rota" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} destinationCoordinates={destinationCoordinates} />
-            <p className="green">✓ {profile.wheelchair ? 'Exibir vagas acessíveis primeiro' : 'Preferências de mobilidade aplicadas'}<br />ⓘ As condições precisam de confirmação local</p>
+            <div className="route-notes">
+        <span className="route-pill"><CircleCheck size={16} className="rp-ok" />{profile.wheelchair ? 'Exibir vagas acessíveis primeiro' : 'Preferências de mobilidade aplicadas'}</span>
+        <span className="route-pill"><Info size={16} className="rp-warn" />As condições precisam de confirmação local</span>
+        </div>
             <button className="wide" onClick={locateDestination}>Buscar destino no mapa →</button>
           </div></div><Note title="Inclusão de verdade">As informações precisam ser validadas com pessoas com deficiência. O mapa não certifica a acessibilidade real dos locais.</Note></>}
 
