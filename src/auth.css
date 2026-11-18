@@ -41,3 +41,9 @@
 .auth-page~*{box-sizing:border-box}
 @media(max-width:850px){.auth-page{grid-template-columns:1fr}.auth-visual{min-height:auto;padding:24px}.auth-message{margin:35px auto 15px}.auth-message h1{font-size:42px}.auth-message .map-frame{height:180px}.auth-credit{display:none}.auth-side{padding:24px 14px}.auth-card{max-height:none;padding:26px}}
 @media(max-width:700px){.mapgrid .map-frame{height:280px}.hero .map-frame{height:190px}.auth-message>p{font-size:12px}}
+.app .content { position: relative; z-index: 0; isolation: isolate; }
+.app .map-frame { position: relative; z-index: 0; isolation: isolate; }
+.app .leaflet-map { position: relative; z-index: 0; }
+
+.app .shade { z-index: 2000; }
+.app .sidebar { z-index: 2100; }
