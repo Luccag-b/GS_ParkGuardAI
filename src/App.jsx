@@ -694,7 +694,7 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
       window.clearTimeout(requestTimeout);
       controller.abort();
     };
-  }, [value, region, selected]);
+  }, [value, selected]);
 
   const chooseSuggestion = suggestion => {
     onSelect(suggestion);
