@@ -1,3 +1,34 @@
+.map-frame {
+  position: relative;
+}
+
+.map-recenter-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #485070 !important;
+  border-radius: 8px !important;
+  background: #0d1121eb !important;
+  color: #f5f5fb !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  box-shadow: 0 4px 14px #0009;
+  backdrop-filter: blur(6px);
+}
+
+.map-recenter-btn:hover,
+.map-recenter-btn:focus-visible {
+  background: #1b223d !important;
+  border-color: #ff559d !important;
+  outline: 2px solid #ff559d;
+  outline-offset: 2px;
+}
+
 .leaflet-map {
   width: 100%;
   height: 100%;
@@ -215,24 +246,57 @@
   z-index: 1000;
 }
 
+.search-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #e2e6f3;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.search-hint {
+  display: block;
+  margin: -10px 0 12px;
+  color: #aeb6cc;
+  font-size: 12px;
+}
+
+.search-clear-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: #232942 !important;
+  color: #e2e6f3 !important;
+  flex-shrink: 0;
+}
+
+.search-clear-btn:hover,
+.search-clear-btn:focus-visible {
+  background: #343c5e !important;
+  outline: 2px solid #ff559d;
+}
+
 .address-suggestions {
   position: absolute;
-  top: calc(100% - 16px);
+  top: calc(100% - 4px);
   right: 0;
   left: 0;
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
   border: 1px solid #41435f;
-  border-radius: 9px;
+  border-radius: 10px;
   background: #111629;
   box-shadow: 0 8px 24px #000b;
 }
 
 .suggestion-region,
 .suggestion-message {
-  padding: 9px 12px;
-  color: #929ab2;
-  font-size: 10px;
+  padding: 10px 14px;
+  color: #b7c0d8;
+  font-size: 12px;
 }
 
 .result-group-title {
@@ -267,9 +331,11 @@
 }
 
 .address-suggestion:hover,
-.address-suggestion:focus-visible {
+.address-suggestion:focus-visible,
+.address-suggestion.active {
   background: #25213a;
-  outline: none;
+  outline: 2px solid #ff559d;
+  outline-offset: -2px;
 }
 
 .address-suggestion strong,
@@ -278,11 +344,43 @@
 }
 
 .address-suggestion strong {
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .address-suggestion small {
   margin-top: 4px;
-  color: #929ab2;
-  font-size: 9px;
+  color: #b7c0d8;
+  font-size: 12px;
+}
+
+.hero.hero-single {
+  grid-template-columns: 1fr;
+}
+
+.hero.hero-single p {
+  max-width: 640px;
+  font-size: 14px;
+}
+
+.search:focus-within {
+  border-color: #ff559d;
+  box-shadow: 0 0 0 3px #ff559d33;
+}
+
+.search input {
+  font-size: 14px;
+}
+
+.search input::placeholder {
+  color: #9ba5c2;
+}
+
+.search button:not(.search-clear-btn) {
+  padding: 11px 16px;
+  font-size: 13px;
+}
+
+.search button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }

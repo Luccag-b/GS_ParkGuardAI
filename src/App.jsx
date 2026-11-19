@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './map.css';
 import {
-  Accessibility, Bell, CarFront, CircleCheck, Eye, Home, Info, Map, MapPin, Menu, Plus, Search,
+  Accessibility, Bell, CarFront, CircleCheck, Eye, Home, Info, LocateFixed, Map, MapPin, Menu, Plus, Search,
   ShieldCheck, TriangleAlert, User, Volume2, X, Route
 } from 'lucide-react';
 import './auth.css';
@@ -634,24 +634,26 @@ export default function App() {
           <p>Estacione. Dirija. Acesse. Para todos.</p></div><span className="demo">● OPENSTREETMAP</span></div>
 
         {tab === 'Início' && <>
-          <section className="hero"><div><label className="chip">● INTELIGÊNCIA URBANA</label><h2>Sua jornada,<br /><em>sem barreiras.</em></h2>
+          <section className="hero hero-single"><div><label className="chip">● INTELIGÊNCIA URBANA</label><h2>Sua jornada,<br /><em>sem barreiras.</em></h2>
             <p>Encontre vagas, evite riscos e descubra rotas acessíveis. Tudo conectado em um só lugar.</p>
-            {destinationSearch('Buscar →')}
+            {destinationSearch('Buscar no mapa →')}
             <small>♿ Rotas acessíveis　　⌖ Alertas inteligentes　　▣ Vagas disponíveis</small></div>
-            <MapArt center={mapCenter} title="Mapa de São Paulo" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} alerts={mapAlerts} streetStripes={streetStripes} showRadius userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} />
           </section>
           <div className="stats"><Stat n={destinationCoordinates ? filteredPlaces.reduce((sum, place) => sum + place.spots, 0) : places.reduce((sum, place) => sum + place.spots, 0)} t={destinationCoordinates ? 'Vagas (demonstração)' : 'Vagas de demonstração'} /><Stat n={destinationCoordinates ? filteredOsmParking.filter(place => place.accessible).length : places.filter(place => place.access).length} t={destinationCoordinates ? 'Acessibilidade mapeada' : 'Acessíveis (demonstração)'} /><Stat n={alerts.length} t="Alertas ativos" /><Stat n="04" t="Rotas inclusivas" /></div>
           <Section title={destinationCoordinates ? 'Vagas e estacionamentos próximos' : 'Estacionamentos de demonstração'} action="Ver mapa completo" click={() => setTab('Mapa')} />
           <div className="columns"><div>{destinationCoordinates
             ? destinationResults
-            : destinationPlaces.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>Estacionamentos e ruas · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} alerts={mapAlerts} streetStripes={streetStripes} showRadius userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} /></div></div>
+            : destinationPlaces.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>Raio de 1 km · ruas, vagas PcD e buracos · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} alerts={mapAlerts} streetStripes={streetStripes} showRadius userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} /></div></div>
           <Section title="Alertas recentes" action="Ver todos" click={() => setTab('Alertas na via')} />
           <div className="alerts">{alerts.slice(0, 3).map(alert => <Alert key={alert.id} a={alert} />)}</div>
           <div className="inclusive"><Accessibility /><div><label>INCLUSIVE MOBILITY</label><h2>Não basta chegar. É preciso que todos consigam chegar.</h2><p>Vagas acessíveis, rotas sem barreiras e recursos de acessibilidade.</p></div><button onClick={() => setTab('Rotas acessíveis')}>Explorar acessibilidade →</button></div>
         </>}
 
         {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>{destinationCoordinates ? 'Vagas e estacionamentos em até 1 km do destino' : 'Vagas próximas e sua rota'} <small>Raio de 1 km · ruas, vagas PcD e buracos · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={mapPlaces} osmParking={filteredOsmParking} alerts={showMapAlerts ? mapAlerts : []} streetStripes={streetStripes} showRadius userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} /><p className="map-status">Dentro do raio de 1 km, as ruas exibem listra azul quando há vaga disponível e listra vermelha quando não há vaga na simulação. ♿ indica vaga ou estacionamento para cadeirante e ⚠ indica aviso de buraco/alerta na via.</p>{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
-          <div className="panel"><h3>{destinationCoordinates ? 'Locais em até 1 km do destino' : 'Vagas próximas'}</h3><div className="search"><Search /><input placeholder="Buscar estacionamento" value={query} onChange={event => setQuery(event.target.value)} /></div>
+          <div className="panel"><h3>{destinationCoordinates ? 'Locais em até 1 km do destino' : 'Vagas próximas'}</h3>
+            {destinationSearch('Buscar no mapa')}
+            <label htmlFor="parking-filter-input" className="search-label">Filtrar vagas exibidas</label>
+            <div className="search"><Search aria-hidden="true" /><input id="parking-filter-input" placeholder="Filtrar por nome ou rua..." value={query} onChange={event => setQuery(event.target.value)} />{query && <button type="button" className="search-clear-btn" aria-label="Limpar filtro" onClick={() => setQuery('')}><X size={14} /></button>}</div>
             <label className="filter"><span><Accessibility /> Apenas vagas para cadeirantes / acessíveis</span><input type="checkbox" checked={onlyAccessible} onChange={event => setOnlyAccessible(event.target.checked)} /></label>
             <label className="filter"><span><TriangleAlert /> Mostrar avisos de buracos e alertas</span><input type="checkbox" checked={showMapAlerts} onChange={event => setShowMapAlerts(event.target.checked)} /></label>
             {destinationCoordinates
@@ -811,39 +813,69 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
     onSelect(suggestion);
     setIsOpen(false);
     setSuggestions([]);
+    setActiveIndex(-1);
   };
 
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const inputId = 'destination-search-input';
+  const showDropdown = isOpen && query.length >= 3;
+
   return <div className="destination-search">
+    <label htmlFor={inputId} className="search-label">Buscar destino ou CEP</label>
     <div className="search">
-      <MapPin />
+      <MapPin aria-hidden="true" />
       <input
+        id={inputId}
+        role="combobox"
         value={value}
-        onChange={event => { onChange(event.target.value); setIsOpen(true); }}
+        onChange={event => { onChange(event.target.value); setIsOpen(true); setActiveIndex(-1); }}
         onFocus={() => setIsOpen(true)}
         onBlur={() => setIsOpen(false)}
         onKeyDown={event => {
+          if (event.key === 'ArrowDown' && showDropdown && suggestions.length > 0) {
+            event.preventDefault();
+            setActiveIndex(current => (current + 1) % suggestions.length);
+            return;
+          }
+          if (event.key === 'ArrowUp' && showDropdown && suggestions.length > 0) {
+            event.preventDefault();
+            setActiveIndex(current => (current <= 0 ? suggestions.length - 1 : current - 1));
+            return;
+          }
+          if (event.key === 'Escape') {
+            setIsOpen(false);
+            setActiveIndex(-1);
+            return;
+          }
           if (event.key !== 'Enter') return;
           event.preventDefault();
-          if (isOpen && suggestions.length > 0) chooseSuggestion(suggestions[0]);
-          else onSearch();
+          if (showDropdown && suggestions.length > 0) {
+            chooseSuggestion(suggestions[activeIndex >= 0 ? activeIndex : 0]);
+          } else {
+            onSearch();
+          }
         }}
         aria-autocomplete="list"
-        aria-expanded={isOpen && value.trim().length >= 3}
+        aria-expanded={showDropdown}
         aria-controls="destination-suggestions"
-        placeholder="Para onde você vai?"
+        aria-activedescendant={activeIndex >= 0 && suggestions[activeIndex] ? `suggestion-option-${suggestions[activeIndex].id}` : undefined}
+        placeholder="Ex.: Av. Paulista, Hospital das Clínicas ou CEP"
       />
-      <button disabled={busy} onClick={() => { setIsOpen(false); onSearch(); }}>{busy ? 'Buscando...' : buttonLabel}</button>
+      {value && <button type="button" className="search-clear-btn" aria-label="Limpar destino" onMouseDown={event => event.preventDefault()} onClick={() => { onChange(''); setSuggestions([]); setActiveIndex(-1); }}><X size={14} /></button>}
+      <button type="button" disabled={busy} onClick={() => { setIsOpen(false); onSearch(); }}>{busy ? 'Buscando...' : buttonLabel}</button>
     </div>
-    {isOpen && value.trim().length >= 3 && <div className="address-suggestions" id="destination-suggestions" role="listbox">
+    <small className="search-hint">Digite pelo menos 3 caracteres para ver sugestões. Use as setas ↑ ↓ e Enter para selecionar.</small>
+    {showDropdown && <div className="address-suggestions" id="destination-suggestions" role="listbox" aria-label="Sugestões de endereço">
       <div className="suggestion-region">{isPostalCode ? 'Endereços encontrados pelo CEP' : 'Lugares encontrados perto do mapa'}</div>
-      {suggestionsLoading && <div className="suggestion-message">{isPostalCode ? 'Buscando endereço no ViaCEP...' : 'Buscando lugares...'}</div>}
+      {suggestionsLoading && <div className="suggestion-message" role="status" aria-live="polite">{isPostalCode ? 'Buscando endereço no ViaCEP...' : 'Buscando lugares...'}</div>}
       {suggestionsError && <div className="suggestion-message" role="alert">{suggestionsError}</div>}
-      {!suggestionsLoading && !suggestionsError && hasSearched && suggestions.length === 0 && <div className="suggestion-message">{isPostalCode ? 'CEP não encontrado.' : 'Nenhum lugar encontrado perto desta região.'}</div>}
-      {suggestions.map(suggestion => <button
+      {!suggestionsLoading && !suggestionsError && hasSearched && suggestions.length === 0 && <div className="suggestion-message" role="status">{isPostalCode ? 'CEP não encontrado.' : 'Nenhum lugar encontrado perto desta região.'}</div>}
+      {suggestions.map((suggestion, index) => <button
         type="button"
-        className="address-suggestion"
+        id={`suggestion-option-${suggestion.id}`}
+        className={`address-suggestion ${index === activeIndex ? 'active' : ''}`}
         role="option"
-        aria-selected="false"
+        aria-selected={index === activeIndex}
         key={suggestion.id}
         onMouseDown={event => event.preventDefault()}
         onClick={() => chooseSuggestion(suggestion)}
@@ -858,6 +890,7 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
 function MapArt({ center, title, places = [], osmParking = [], alerts = [], streetStripes = [], showRadius = false, userLocation, routeCoordinates = [], destinationCoordinates }) {
   const mapElement = useRef(null);
   const mapInstance = useRef(null);
+  const recenterActionRef = useRef(null);
 
   useEffect(() => {
     if (!mapElement.current) return undefined;
@@ -1050,17 +1083,35 @@ function MapArt({ center, title, places = [], osmParking = [], alerts = [], stre
       }).addTo(layers);
     }
 
-    if (radiusCircle) {
-      map.fitBounds(radiusCircle.getBounds().pad(0.12), { maxZoom: 16, animate: false });
-    } else if (layers.getLayers().length > 0) {
-      map.fitBounds(layers.getBounds().pad(0.18), { maxZoom: routeCoordinates.length > 0 ? 14 : 16, animate: false });
-    } else {
-      map.setView(center, 15);
-    }
-    return () => map.removeLayer(layers);
+    const fitMapView = (animate = false) => {
+      if (radiusCircle) {
+        map.fitBounds(radiusCircle.getBounds().pad(0.12), { maxZoom: 16, animate });
+      } else if (layers.getLayers().length > 0) {
+        map.fitBounds(layers.getBounds().pad(0.18), { maxZoom: routeCoordinates.length > 0 ? 14 : 16, animate });
+      } else {
+        map.setView(center, 15, { animate });
+      }
+    };
+    recenterActionRef.current = () => fitMapView(true);
+    fitMapView(false);
+    return () => {
+      recenterActionRef.current = null;
+      map.removeLayer(layers);
+    };
   }, [center, places, osmParking, alerts, streetStripes, showRadius, userLocation, routeCoordinates, destinationCoordinates]);
 
-  return <div className="map-frame" role="region" aria-label={title}><div className="leaflet-map" ref={mapElement} /></div>;
+  return <div className="map-frame" role="region" aria-label={title}>
+    <button
+      type="button"
+      className="map-recenter-btn"
+      onClick={() => recenterActionRef.current?.()}
+      aria-label="Recentralizar mapa"
+      title="Recentralizar mapa"
+    >
+      <LocateFixed size={15} aria-hidden="true" /> Recentralizar
+    </button>
+    <div className="leaflet-map" ref={mapElement} />
+  </div>;
 }
 
 function Stat({ n, t }) { return <div className="stat"><b>{n}</b><small>{t}</small></div>; }
