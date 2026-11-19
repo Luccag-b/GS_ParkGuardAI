@@ -14,7 +14,9 @@ const initialPlaces = [
   { id: 1, n: 'Estacionamento Central', a: 'Av. Paulista, 1000', d: '120 m', price: 'R$ 12/h', spots: 8, access: true, ramp: true, side: true, type: 'parking', coordinates: [-23.5631, -46.6544] },
   { id: 2, n: 'Garagem Bela Vista', a: 'Rua Itapeva, 220', d: '350 m', price: 'R$ 9/h', spots: 3, access: false, type: 'parking', coordinates: [-23.5597, -46.6524] },
   { id: 3, n: 'Shopping Cidade', a: 'Rua Pamplona, 800', d: '600 m', price: 'R$ 15/h', spots: 12, access: true, ramp: true, side: true, type: 'parking', coordinates: [-23.5656, -46.6531] },
-  { id: 4, n: 'Edifício Horizonte', a: 'Alameda Santos, 540', d: '750 m', price: 'R$ 10/h', spots: 2, access: true, side: true, type: 'parking', coordinates: [-23.5621, -46.6591] }
+  { id: 4, n: 'Edifício Horizonte', a: 'Alameda Santos, 540', d: '750 m', price: 'R$ 10/h', spots: 2, access: true, side: true, type: 'parking', coordinates: [-23.5621, -46.6591] },
+  { id: 5, n: 'Vaga Cadeirante · Paulista', a: 'Av. Paulista, 1374 (vaga exclusiva PcD)', d: '210 m', price: 'Zona Azul', spots: 2, access: true, ramp: true, side: true, type: 'wheelchair', coordinates: [-23.5624, -46.6552] },
+  { id: 6, n: 'Estacionamento Cadeirante · MASP', a: 'Av. Paulista, 1578 (acesso com rampa)', d: '420 m', price: 'R$ 10/h', spots: 4, access: true, ramp: true, side: true, type: 'wheelchair', coordinates: [-23.5612, -46.6562] }
 ];
 const destinationRadius = 1000;
 
@@ -58,7 +60,9 @@ function createDemoMapPlaces(center, roadLines = []) {
     const accessible = index % 4 === 0;
     return {
       id: `demo-street-${index + 1}`,
-      n: `Vaga de rua ilustrativa ${String(index + 1).padStart(2, '0')}`,
+      n: accessible
+        ? `Vaga de cadeirante (PcD) ${String(index + 1).padStart(2, '0')}`
+        : `Vaga de rua ilustrativa ${String(index + 1).padStart(2, '0')}`,
       a: `Trecho de via mapeado a ${formatDistance(distance)} do destino`,
       d: formatDistance(distance),
       price: 'Demonstração',
@@ -73,21 +77,47 @@ function createDemoMapPlaces(center, roadLines = []) {
   const parkingPlaces = [260, 580, 900].flatMap((distance, ringIndex) =>
     Array.from({ length: 4 }, (_, pointIndex) => {
       const index = ringIndex * 4 + pointIndex;
+      const isWheelchairSpot = pointIndex === 0;
       return {
         id: `demo-parking-${index + 1}`,
-        n: `Estacionamento ilustrativo ${String(index + 1).padStart(2, '0')}`,
+        n: isWheelchairSpot
+          ? `Estacionamento para cadeirante ${String(ringIndex + 1).padStart(2, '0')}`
+          : `Estacionamento ilustrativo ${String(index + 1).padStart(2, '0')}`,
         a: `Ponto ilustrativo a ${distance} m do destino`,
         d: formatDistance(distance),
         price: 'Demonstração',
         spots: 1,
-        access: pointIndex === 0,
-        type: 'parking',
+        access: isWheelchairSpot,
+        type: isWheelchairSpot ? 'wheelchair' : 'parking',
         isGeneratedDemo: true,
         coordinates: offsetCoordinates(center, distance, pointIndex * 90 + ringIndex * 22.5)
       };
     })
   );
   return [...streetPlaces, ...parkingPlaces];
+}
+
+function createDemoPotholeAlerts(center, roadLines = []) {
+  const roadPoints = roadLines
+    .flatMap(line => line)
+    .map(point => [point.lat, point.lon])
+    .filter(point => Number.isFinite(point[0]) && Number.isFinite(point[1]) && distanceInMeters(center, point) <= destinationRadius);
+  const selectedPoints = roadPoints.length >= 4
+    ? [1, 3, 5, 7].map(step => roadPoints[Math.min(roadPoints.length - 1, Math.floor(step * roadPoints.length / 8))])
+    : [190, 410, 680].map((distance, index) => offsetCoordinates(center, distance, index * 115 + 35));
+  return selectedPoints.map((coordinates, index) => {
+    const distance = distanceInMeters(center, coordinates);
+    return {
+      id: `demo-pothole-${index + 1}`,
+      t: 'Aviso de buraco na via',
+      where: `Trecho a ${formatDistance(distance)} do destino (ilustrativo)`,
+      kind: 'road',
+      category: 'pothole',
+      time: 'aviso ilustrativo',
+      isGeneratedDemo: true,
+      coordinates
+    };
+  });
 }
 
 function distanceInMeters([lat1, lon1], [lat2, lon2]) {
@@ -104,9 +134,10 @@ function formatDistance(meters) {
 }
 
 const initialAlerts = [
-  { id: 1, t: 'Buraco na via', where: 'Av. Paulista, próximo ao nº 850', kind: 'road', time: 'há 4 min' },
-  { id: 2, t: 'Calçada bloqueada', where: 'Rua Augusta, 310', kind: 'access', time: 'há 8 min' },
-  { id: 3, t: 'Ponto de alagamento', where: 'Av. 9 de Julho, 1200', kind: 'road', time: 'há 12 min' }
+  { id: 1, t: 'Buraco na via', where: 'Av. Paulista, próximo ao nº 850', kind: 'road', category: 'pothole', time: 'há 4 min', coordinates: [-23.5649, -46.6522] },
+  { id: 2, t: 'Calçada bloqueada', where: 'Rua Augusta, 310', kind: 'access', category: 'access', time: 'há 8 min', coordinates: [-23.5536, -46.6579] },
+  { id: 3, t: 'Ponto de alagamento', where: 'Av. 9 de Julho, 1200', kind: 'road', category: 'flood', time: 'há 12 min', coordinates: [-23.5562, -46.6526] },
+  { id: 4, t: 'Aviso de buraco', where: 'Rua Itapeva, próximo ao nº 260', kind: 'road', category: 'pothole', time: 'há 6 min', coordinates: [-23.5603, -46.6531] }
 ];
 const defaultProfile = {
   name: '', email: '', disability: false, wheelchair: false, visual: false,
@@ -252,6 +283,7 @@ export default function App() {
   const [alerts, setAlerts] = useState(initialAlerts);
   const [query, setQuery] = useState('');
   const [onlyAccessible, setOnlyAccessible] = useState(false);
+  const [showMapAlerts, setShowMapAlerts] = useState(true);
   const [selected, setSelected] = useState(1);
   const [destination, setDestination] = useState('Hospital das Clínicas');
   const [selectedSuggestion, setSelectedSuggestion] = useState(null);
@@ -431,7 +463,17 @@ export default function App() {
 
   const saveReport = () => {
     if (!where.trim()) return notify('Informe o local da ocorrência.');
-    setAlerts(current => [{ id: Date.now(), t: kind, where, kind: kind.includes('Calçada') || kind.includes('rampa') ? 'access' : 'road', time: 'agora' }, ...current]);
+    const baseCoordinates = destinationCoordinates || mapCenter;
+    const reportCoordinates = offsetCoordinates(baseCoordinates, 160, (alerts.length * 65 + 30) % 360);
+    setAlerts(current => [{
+      id: Date.now(),
+      t: kind,
+      where,
+      kind: kind.includes('Calçada') || kind.includes('rampa') ? 'access' : 'road',
+      category: kind.toLowerCase().includes('buraco') ? 'pothole' : 'road',
+      time: 'agora',
+      coordinates: reportCoordinates
+    }, ...current]);
     setWhere('');
     setModal(false);
     notify('Relato enviado para validação!');
@@ -458,10 +500,17 @@ export default function App() {
         && `${place.n} ${place.a}`.toLowerCase().includes(query.toLowerCase())
     );
   const mapPlaces = destinationCoordinates ? [...filteredPlaces, ...demoMapPlaces] : filteredPlaces;
+  const demoPotholeAlerts = destinationCoordinates
+    ? createDemoPotholeAlerts(destinationCoordinates, osmRoads)
+    : [];
+  const visibleSessionAlerts = destinationCoordinates
+    ? alerts.filter(alert => alert.coordinates && distanceInMeters(destinationCoordinates, alert.coordinates) <= destinationRadius)
+    : alerts;
+  const mapAlerts = [...visibleSessionAlerts, ...demoPotholeAlerts];
   const nav = [['Início', Home], ['Mapa', Map], ['Alertas na via', TriangleAlert], ['Rotas acessíveis', Accessibility], ['Meus trajetos', Route], ['Perfil', User]];
   const card = place => <article className={`parking ${selected === place.id ? 'sel' : ''}`} key={place.id} onClick={() => setSelected(place.id)}>
-    <div className="car"><CarFront /></div>
-    <div className="pinfo"><b>{place.n} {place.access && <small className="atag"><Accessibility size={12} /> Acessível</small>}</b>
+    <div className={`car ${place.type === 'wheelchair' ? 'osm-accessible' : ''}`}>{place.type === 'wheelchair' ? <Accessibility /> : <CarFront />}</div>
+    <div className="pinfo"><b>{place.n} {place.access && <small className="atag"><Accessibility size={12} /> {place.type === 'wheelchair' ? 'Cadeirante (PcD)' : 'Acessível'}</small>}</b>
       <small><MapPin size={12} />{place.a} · {place.d}</small>
       <small className="green">Demonstração{place.ramp ? ' · ✓ Rampa' : ''}{place.side ? ' · ✓ Espaço lateral' : ''}</small>
     </div>
@@ -531,21 +580,22 @@ export default function App() {
             <p>Encontre vagas, evite riscos e descubra rotas acessíveis. Tudo conectado em um só lugar.</p>
             {destinationSearch('Buscar →')}
             <small>♿ Rotas acessíveis　　⌖ Alertas inteligentes　　▣ Vagas disponíveis</small></div>
-            <MapArt center={mapCenter} title="Mapa de São Paulo" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} />
+            <MapArt center={mapCenter} title="Mapa de São Paulo" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} alerts={mapAlerts} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} />
           </section>
           <div className="stats"><Stat n={destinationCoordinates ? filteredPlaces.reduce((sum, place) => sum + place.spots, 0) : places.reduce((sum, place) => sum + place.spots, 0)} t={destinationCoordinates ? 'Vagas (demonstração)' : 'Vagas de demonstração'} /><Stat n={destinationCoordinates ? filteredOsmParking.filter(place => place.accessible).length : places.filter(place => place.access).length} t={destinationCoordinates ? 'Acessibilidade mapeada' : 'Acessíveis (demonstração)'} /><Stat n={alerts.length} t="Alertas ativos" /><Stat n="04" t="Rotas inclusivas" /></div>
           <Section title={destinationCoordinates ? 'Vagas e estacionamentos próximos' : 'Estacionamentos de demonstração'} action="Ver mapa completo" click={() => setTab('Mapa')} />
           <div className="columns"><div>{destinationCoordinates
             ? destinationResults
-            : destinationPlaces.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>Estacionamentos e ruas · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} /></div></div>
+            : destinationPlaces.slice(0, 3).map(card)}</div><div className="panel"><h3>Mapa inteligente <small>Estacionamentos e ruas · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa inteligente de vagas" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} alerts={mapAlerts} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} /></div></div>
           <Section title="Alertas recentes" action="Ver todos" click={() => setTab('Alertas na via')} />
           <div className="alerts">{alerts.slice(0, 3).map(alert => <Alert key={alert.id} a={alert} />)}</div>
           <div className="inclusive"><Accessibility /><div><label>INCLUSIVE MOBILITY</label><h2>Não basta chegar. É preciso que todos consigam chegar.</h2><p>Vagas acessíveis, rotas sem barreiras e recursos de acessibilidade.</p></div><button onClick={() => setTab('Rotas acessíveis')}>Explorar acessibilidade →</button></div>
         </>}
 
-        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>{destinationCoordinates ? 'Vagas e estacionamentos em até 1 km do destino' : 'Vagas próximas e sua rota'} <small>Ruas, estacionamentos e acessibilidade · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={mapPlaces} osmParking={filteredOsmParking} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} />{destinationCoordinates && <p className="map-status">Os traços de rua seguem vias mapeadas no OpenStreetMap dentro do raio de 1 km. Os nomes aparecem ao passar o cursor ou tocar nos pontos; azul = livre e vermelho = ocupada apenas na simulação. Nenhum ponto confirma disponibilidade real. ♿ indica acessibilidade de demonstração.</p>}{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
+        {tab === 'Mapa' && <div className="mapgrid"><div className="panel"><h3>{destinationCoordinates ? 'Vagas e estacionamentos em até 1 km do destino' : 'Vagas próximas e sua rota'} <small>Ruas, estacionamentos, vagas PcD e buracos · OpenStreetMap</small></h3><MapArt center={mapCenter} title="Mapa de disponibilidade" places={mapPlaces} osmParking={filteredOsmParking} alerts={showMapAlerts ? mapAlerts : []} userLocation={userLocation} routeCoordinates={routeCoordinates} destinationCoordinates={destinationCoordinates} /><Legend osm={Boolean(destinationCoordinates)} />{destinationCoordinates && <p className="map-status">Os traços de rua seguem vias mapeadas no OpenStreetMap dentro do raio de 1 km. Os nomes aparecem ao passar o cursor ou tocar nos pontos; azul = livre e vermelho = ocupada apenas na simulação. ♿ indica vaga ou estacionamento para cadeirante e ⚠ indica aviso de buraco/alerta na via.</p>}{routeCoordinates.length > 0 && <p className="map-status">Rota de carro exibida a partir da sua localização atual.</p>}</div>
           <div className="panel"><h3>{destinationCoordinates ? 'Locais em até 1 km do destino' : 'Vagas próximas'}</h3><div className="search"><Search /><input placeholder="Buscar estacionamento" value={query} onChange={event => setQuery(event.target.value)} /></div>
-            <label className="filter"><span><Accessibility /> Mostrar apenas acessíveis</span><input type="checkbox" checked={onlyAccessible} onChange={event => setOnlyAccessible(event.target.checked)} /></label>
+            <label className="filter"><span><Accessibility /> Apenas vagas para cadeirantes / acessíveis</span><input type="checkbox" checked={onlyAccessible} onChange={event => setOnlyAccessible(event.target.checked)} /></label>
+            <label className="filter"><span><TriangleAlert /> Mostrar avisos de buracos e alertas</span><input type="checkbox" checked={showMapAlerts} onChange={event => setShowMapAlerts(event.target.checked)} /></label>
             {destinationCoordinates
               ? destinationResults
               : filteredPlaces.length > 0 ? filteredPlaces.map(card) : <p className="map-status">Nenhuma vaga encontrada.</p>}
@@ -563,7 +613,7 @@ export default function App() {
               ['voice', 'Orientação por áudio', Volume2],
               ['contrast', 'Alto contraste', Eye]
             ].map(([key, label, Icon]) => <label className="pref" key={key}><Icon />{label}<input type="checkbox" checked={Boolean(profile[key])} onChange={event => setProfile(current => ({ ...current, [key]: event.target.checked }))} /></label>)}
-          </div><div className="panel"><h3>Planejar rota acessível</h3>{destinationSearch('Ver no mapa')}<MapArt center={mapCenter} title="Mapa para planejar rota" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} destinationCoordinates={destinationCoordinates} />
+          </div><div className="panel"><h3>Planejar rota acessível</h3>{destinationSearch('Ver no mapa')}<MapArt center={mapCenter} title="Mapa para planejar rota" places={destinationCoordinates ? mapPlaces : destinationPlaces} osmParking={filteredOsmParking} alerts={mapAlerts} destinationCoordinates={destinationCoordinates} />
             <div className="route-notes">
         <span className="route-pill"><CircleCheck size={16} className="rp-ok" />{profile.wheelchair ? 'Exibir vagas acessíveis primeiro' : 'Preferências de mobilidade aplicadas'}</span>
         <span className="route-pill"><Info size={16} className="rp-warn" />As condições precisam de confirmação local</span>
@@ -747,7 +797,7 @@ function AddressAutocomplete({ value, onChange, onSelect, onSearch, center, sele
   </div>;
 }
 
-function MapArt({ center, title, places = [], osmParking = [], userLocation, routeCoordinates = [], destinationCoordinates }) {
+function MapArt({ center, title, places = [], osmParking = [], alerts = [], userLocation, routeCoordinates = [], destinationCoordinates }) {
   const mapElement = useRef(null);
   const mapInstance = useRef(null);
 
@@ -772,17 +822,26 @@ function MapArt({ center, title, places = [], osmParking = [], userLocation, rou
     const layers = L.featureGroup().addTo(map);
     places.filter(place => place.spots > 0).forEach(place => {
       const isStreet = place.type === 'street';
-      const typeLabel = isStreet ? 'Vaga de rua' : 'Estacionamento';
+      const isWheelchair = place.type === 'wheelchair';
+      const typeLabel = isStreet
+        ? 'Vaga de rua'
+        : isWheelchair
+          ? 'Estacionamento para cadeirante (PcD)'
+          : 'Estacionamento';
       const isGeneratedDemo = place.isGeneratedDemo;
       const markerClass = isStreet
         ? `parking-map-icon demo-street-slot-icon ${place.availability}-slot-icon`
-        : 'parking-map-icon demo-parking-map-icon';
+        : isWheelchair
+          ? 'parking-map-icon wheelchair-parking-map-icon'
+          : 'parking-map-icon demo-parking-map-icon';
       const marker = L.marker(place.coordinates, {
         icon: L.divIcon({
           className: markerClass,
           html: isStreet
-            ? '<span aria-hidden="true"></span>'
-            : `<span>P${place.access ? '<i class="demo-access-badge">♿</i>' : ''}</span>`,
+            ? `<span aria-hidden="true"></span>${place.access ? '<i class="demo-street-access-badge">♿</i>' : ''}`
+            : isWheelchair
+              ? '<span>♿</span>'
+              : `<span>P${place.access ? '<i class="demo-access-badge">♿</i>' : ''}</span>`,
           iconSize: isStreet ? [36, 16] : [36, 36],
           iconAnchor: isStreet ? [18, 8] : [18, 18]
         })
@@ -802,9 +861,11 @@ function MapArt({ center, title, places = [], osmParking = [], userLocation, rou
       const address = document.createElement('small');
       address.textContent = place.a;
       const accessibility = document.createElement('p');
-      accessibility.textContent = place.access
-        ? 'Acessibilidade indicada em dado de demonstração'
-        : 'Acessibilidade não informada em dado de demonstração';
+      accessibility.textContent = isWheelchair
+        ? 'Vaga exclusiva para cadeirante / PcD (demonstração)'
+        : place.access
+          ? 'Acessibilidade indicada em dado de demonstração'
+          : 'Acessibilidade não informada em dado de demonstração';
       popup.append(name, detail, address, accessibility);
       marker.bindPopup(popup);
     });
@@ -839,6 +900,33 @@ function MapArt({ center, title, places = [], osmParking = [], userLocation, rou
         capacity.textContent = `Capacidade total mapeada: ${place.capacity} (não indica vagas livres)`;
         popup.append(capacity);
       }
+      marker.bindPopup(popup);
+    });
+
+    alerts.filter(alert => Array.isArray(alert.coordinates)).forEach(alert => {
+      const isPothole = alert.category === 'pothole' || alert.t.toLowerCase().includes('buraco');
+      const marker = L.marker(alert.coordinates, {
+        icon: L.divIcon({
+          className: isPothole ? 'pothole-map-icon' : 'alert-map-icon',
+          html: '<span>⚠</span>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        }),
+        zIndexOffset: 600
+      }).addTo(layers);
+      const tooltip = document.createElement('span');
+      tooltip.textContent = `${isPothole ? 'Aviso de buraco' : alert.t} · ${alert.where}`;
+      marker.bindTooltip(tooltip, { direction: 'top', offset: [0, -8] });
+      const popup = document.createElement('div');
+      const titleNode = document.createElement('strong');
+      titleNode.textContent = `⚠ ${alert.t}`;
+      const whereNode = document.createElement('p');
+      whereNode.textContent = alert.where;
+      const infoNode = document.createElement('small');
+      infoNode.textContent = isPothole
+        ? `Risco para veículos e cadeirantes · ${alert.time}`
+        : `${alert.kind === 'access' ? 'Barreira de acessibilidade' : 'Alerta na via'} · ${alert.time}`;
+      popup.append(titleNode, whereNode, infoNode);
       marker.bindPopup(popup);
     });
 
@@ -881,7 +969,7 @@ function MapArt({ center, title, places = [], osmParking = [], userLocation, rou
       map.setView(center, 15);
     }
     return () => map.removeLayer(layers);
-  }, [center, places, osmParking, userLocation, routeCoordinates, destinationCoordinates]);
+  }, [center, places, osmParking, alerts, userLocation, routeCoordinates, destinationCoordinates]);
 
   return <div className="map-frame" role="region" aria-label={title}><div className="leaflet-map" ref={mapElement} /></div>;
 }
@@ -893,7 +981,7 @@ function Note({ title, children }) { return <div className="note"><b>{title}</b>
 function Legend({ osm = false }) {
   return <div className="legend">
     {osm
-      ? <><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span><span>P = Estacionamento ilustrativo</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>P = Estacionamento mapeado no OSM</span><span>♿ = Acessibilidade mapeada no OSM</span><span>Traços posicionados em vias do OpenStreetMap no raio</span></>
-      : <><span>P = Estacionamento ilustrativo</span><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span><span>♿ = Acessibilidade indicada (demonstração)</span><span>⚠ Alerta</span></>}
+      ? <><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span><span><i className="map-key-badge parking-key">P</i> Estacionamento</span><span><i className="map-key-badge wheelchair-key">♿</i> Vaga / Estacionamento de cadeirante</span><span><i className="map-key-badge pothole-key">⚠</i> Aviso de buraco / Alerta na via</span><span>Traços posicionados em vias do OpenStreetMap no raio</span></>
+      : <><span><i className="map-key-badge parking-key">P</i> Estacionamento</span><span><i className="map-key-badge wheelchair-key">♿</i> Vaga / Estacionamento de cadeirante</span><span><i className="map-key-badge pothole-key">⚠</i> Aviso de buraco / Alerta na via</span><span><i className="street-slot-key free-slot-key" /> Azul = livre na simulação</span><span><i className="street-slot-key occupied-slot-key" /> Vermelho = ocupada na simulação</span></>}
   </div>;
 }
