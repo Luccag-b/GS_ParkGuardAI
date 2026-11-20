@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './map.css';
@@ -159,9 +159,14 @@ function readAccounts() {
 }
 
 function getInitialProfile() {
-  const email = localStorage.getItem(sessionKey);
-  if (!email) return defaultProfile;
-  return readAccounts().find(account => account.email === email)?.profile || defaultProfile;
+  try {
+    const email = localStorage.getItem(sessionKey);
+    if (!email) return defaultProfile;
+    const saved = readAccounts().find(account => account.email === email)?.profile;
+    return saved ? { ...defaultProfile, ...saved } : defaultProfile;
+  } catch {
+    return defaultProfile;
+  }
 }
 
 async function passwordHash(password, salt) {
@@ -316,9 +321,12 @@ export default function App() {
   };
 
   const login = nextProfile => {
-    setProfile(nextProfile);
-    setOnlyAccessible(Boolean(nextProfile.wheelchair));
-    localStorage.setItem(sessionKey, nextProfile.email);
+    const safeProfile = { ...defaultProfile, ...(nextProfile || {}) };
+    setProfile(safeProfile);
+    setOnlyAccessible(Boolean(safeProfile.wheelchair));
+    if (safeProfile.email) {
+      localStorage.setItem(sessionKey, safeProfile.email);
+    }
     setAuthenticated(true);
   };
 
@@ -483,30 +491,46 @@ export default function App() {
     notify('Relato enviado para validação!');
   };
 
-  const destinationPlaces = destinationCoordinates
-    ? places
-      .map(place => ({ ...place, distance: distanceInMeters(destinationCoordinates, place.coordinates) }))
-      .filter(place => place.distance <= destinationRadius)
-      .map(place => ({ ...place, d: formatDistance(place.distance) }))
-    : places;
-  const filteredPlaces = destinationPlaces.filter(place =>
-    (!onlyAccessible || place.access) && `${place.n} ${place.a}`.toLowerCase().includes(query.toLowerCase())
-  );
-  const filteredOsmParking = osmParking.filter(place =>
-    (!onlyAccessible || place.accessible)
-      && `${place.name} ${place.address}`.toLowerCase().includes(query.toLowerCase())
-  );
-  const allDemoMapPlaces = destinationCoordinates
-    ? createDemoMapPlaces(destinationCoordinates, osmRoads)
-    : [];
-  const demoMapPlaces = allDemoMapPlaces.filter(place =>
+  const destinationPlaces = useMemo(() => (
+    destinationCoordinates
+      ? places
+        .map(place => ({ ...place, distance: distanceInMeters(destinationCoordinates, place.coordinates) }))
+        .filter(place => place.distance <= destinationRadius)
+        .map(place => ({ ...place, d: formatDistance(place.distance) }))
+      : places
+  ), [destinationCoordinates, places]);
+  const filteredPlaces = useMemo(() => (
+    destinationPlaces.filter(place =>
+      (!onlyAccessible || place.access) && `${place.n} ${place.a}`.toLowerCase().includes(query.toLowerCase())
+    )
+  ), [destinationPlaces, onlyAccessible, query]);
+  const filteredOsmParking = useMemo(() => (
+    osmParking.filter(place =>
+      (!onlyAccessible || place.accessible)
+        && `${place.name} ${place.address}`.toLowerCase().includes(query.toLowerCase())
+    )
+  ), [osmParking, onlyAccessible, query]);
+  const allDemoMapPlaces = useMemo(() => (
+    destinationCoordinates
+      ? createDemoMapPlaces(destinationCoordinates, osmRoads)
+      : []
+  ), [destinationCoordinates, osmRoads]);
+  const demoMapPlaces = useMemo(() => (
+    allDemoMapPlaces.filter(place =>
       (!onlyAccessible || place.access)
         && `${place.n} ${place.a}`.toLowerCase().includes(query.toLowerCase())
-    );
-  const mapPlaces = destinationCoordinates ? [...filteredPlaces, ...demoMapPlaces] : filteredPlaces;
+    )
+  ), [allDemoMapPlaces, onlyAccessible, query]);
+  const mapPlaces = useMemo(() => (
+    destinationCoordinates ? [...filteredPlaces, ...demoMapPlaces] : filteredPlaces
+  ), [destinationCoordinates, filteredPlaces, demoMapPlaces]);
   const radiusCenter = destinationCoordinates || mapCenter;
-  const allStreetStripes = createStreetStripes(radiusCenter, osmRoads);
-  const streetStripes = allStreetStripes.filter(stripe => !onlyAccessible || stripe.accessible);
+  const allStreetStripes = useMemo(() => (
+    createStreetStripes(radiusCenter, osmRoads)
+  ), [radiusCenter, osmRoads]);
+  const streetStripes = useMemo(() => (
+    allStreetStripes.filter(stripe => !onlyAccessible || stripe.accessible)
+  ), [allStreetStripes, onlyAccessible]);
 
   useEffect(() => {
     if (authenticated && !destinationCoordinates && osmRoads.length === 0 && !osmParkingLoading && !osmParkingError) {
@@ -574,7 +598,7 @@ export default function App() {
     {menu && <div className="shade" onClick={() => setMenu(false)} />}
     <main>
       <header><button className="hamb" onClick={() => setMenu(true)}><Menu /></button><span>PARKGUARD AI　/　{tab}</span>
-        <div className="right"><small>● Sistema operacional</small><Bell /><i>{profile.name[0] || 'P'}</i><button className="logout" onClick={logout}>Sair</button></div>
+        <div className="right"><small>● Sistema operacional</small><Bell /><i>{profile?.name?.[0] || 'P'}</i><button className="logout" onClick={logout}>Sair</button></div>
       </header>
       <div className="content">
         <div className="heading"><div><label className="muted">CONECTANDO PESSOAS E CIDADES</label>
@@ -628,7 +652,7 @@ export default function App() {
 
         {tab === 'Meus trajetos' && <div className="panel"><h3>Atividade recente</h3>{reservation ? <p>▣ {reservation.n} · {reservation.a} · vaga selecionada</p> : <p className="muted">Nenhum trajeto iniciado. Selecione uma vaga no mapa para vê-la aqui.</p>}</div>}
 
-        {tab === 'Perfil' && <div className="panel profile"><div className="avatar">{profile.name[0] || 'P'}</div><h2>{profile.name}</h2><p>{profile.email}</p>
+        {tab === 'Perfil' && <div className="panel profile"><div className="avatar">{profile?.name?.[0] || 'P'}</div><h2>{profile?.name || 'Usuário'}</h2><p>{profile?.email || ''}</p>
           <h3>Preferências de acessibilidade</h3><label className="pref"><Accessibility /> Tenho deficiência ou necessidade de acessibilidade<input type="checkbox" checked={Boolean(profile.disability)} onChange={event => setProfile(current => ({ ...current, disability: event.target.checked }))} /></label>
           {[
             ['wheelchair', 'Mobilidade reduzida / cadeira de rodas'],
@@ -814,7 +838,9 @@ function MapArt({ center, title, places = [], osmParking = [], streetStripes = [
       maxZoom: 19
     }).addTo(map);
     mapInstance.current = map;
+    const frameId = window.requestAnimationFrame(() => map.invalidateSize());
     return () => {
+      window.cancelAnimationFrame(frameId);
       map.stop();
       map.remove();
       mapInstance.current = null;
@@ -959,11 +985,21 @@ function MapArt({ center, title, places = [], osmParking = [], streetStripes = [
       }).addTo(layers);
     }
 
-    if (radiusCircle) {
-      map.fitBounds(radiusCircle.getBounds().pad(0.12), { maxZoom: 16, animate: false });
-    } else if (layers.getLayers().length > 0) {
-      map.fitBounds(layers.getBounds().pad(0.18), { maxZoom: routeCoordinates.length > 0 ? 14 : 16, animate: false });
-    } else {
+    try {
+      const radiusBounds = radiusCircle?.getBounds?.();
+      if (radiusBounds?.isValid?.()) {
+        map.fitBounds(radiusBounds.pad(0.12), { maxZoom: 16, animate: false });
+      } else if (layers.getLayers().length > 0) {
+        const layerBounds = layers.getBounds();
+        if (layerBounds.isValid()) {
+          map.fitBounds(layerBounds.pad(0.18), { maxZoom: routeCoordinates.length > 0 ? 14 : 16, animate: false });
+        } else {
+          map.setView(center, 15);
+        }
+      } else {
+        map.setView(center, 15);
+      }
+    } catch {
       map.setView(center, 15);
     }
     return () => map.removeLayer(layers);
