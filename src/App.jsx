@@ -17,20 +17,6 @@ const initialPlaces = [
   { id: 4, n: 'Edifício Horizonte', a: 'Alameda Santos, 540', d: '750 m', price: 'R$ 10/h', spots: 2, access: true, side: true, type: 'parking', coordinates: [-23.5621, -46.6591] }
 ];
 const destinationRadius = 1000;
-const defaultPaulistaRoads = [
-  [{ lat: -23.5656, lon: -46.6512 }, { lat: -23.5639, lon: -46.6531 }],
-  [{ lat: -23.5639, lon: -46.6531 }, { lat: -23.5621, lon: -46.6551 }],
-  [{ lat: -23.5621, lon: -46.6551 }, { lat: -23.5602, lon: -46.6572 }],
-  [{ lat: -23.5602, lon: -46.6572 }, { lat: -23.5584, lon: -46.6592 }],
-  [{ lat: -23.5644, lon: -46.6548 }, { lat: -23.5628, lon: -46.6566 }],
-  [{ lat: -23.5628, lon: -46.6566 }, { lat: -23.5610, lon: -46.6585 }],
-  [{ lat: -23.5609, lon: -46.6518 }, { lat: -23.5594, lon: -46.6536 }],
-  [{ lat: -23.5661, lon: -46.6536 }, { lat: -23.5645, lon: -46.6554 }],
-  [{ lat: -23.5634, lon: -46.6524 }, { lat: -23.5618, lon: -46.6508 }],
-  [{ lat: -23.5597, lon: -46.6556 }, { lat: -23.5579, lon: -46.6540 }],
-  [{ lat: -23.5631, lon: -46.6544 }, { lat: -23.5616, lon: -46.6528 }],
-  [{ lat: -23.5614, lon: -46.6559 }, { lat: -23.5599, lon: -46.6542 }]
-];
 
 function offsetCoordinates([latitude, longitude], meters, bearingDegrees) {
   const radians = degrees => degrees * Math.PI / 180;
@@ -54,7 +40,7 @@ function offsetCoordinates([latitude, longitude], meters, bearingDegrees) {
 function createDemoMapPlaces(center, roadLines = []) {
   const streetCoordinateKeys = new Set();
   const streetCoordinates = roadLines
-    .flatMap(line => line)
+    .flatMap(road => Array.isArray(road) ? road : road.points || [])
     .map(point => [point.lat, point.lon])
     .filter(point => {
       if (!Number.isFinite(point[0]) || !Number.isFinite(point[1]) || distanceInMeters(center, point) > destinationRadius) return false;
@@ -106,36 +92,33 @@ function createDemoMapPlaces(center, roadLines = []) {
 
 function createStreetStripes(center, roadLines = []) {
   const segments = [];
-  roadLines.forEach(line => {
+  roadLines.forEach(road => {
+    const line = Array.isArray(road) ? road : road.points || [];
+    const streetName = Array.isArray(road) ? 'Via mapeada' : road.name || 'Via mapeada';
     for (let index = 0; index < line.length - 1; index += 1) {
       const start = [line[index].lat, line[index].lon];
       const end = [line[index + 1].lat, line[index + 1].lon];
       if (!Number.isFinite(start[0]) || !Number.isFinite(start[1]) || !Number.isFinite(end[0]) || !Number.isFinite(end[1])) continue;
+      if (distanceInMeters(center, start) > destinationRadius || distanceInMeters(center, end) > destinationRadius) continue;
+      const segmentLength = distanceInMeters(start, end);
+      if (segmentLength < 20 || segmentLength > 180) continue;
       const midpoint = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
-      if (distanceInMeters(center, midpoint) > destinationRadius) continue;
-      if (distanceInMeters(start, end) < 25) continue;
-      segments.push({ coordinates: [start, end], midpoint, distance: distanceInMeters(center, midpoint) });
+      segments.push({
+        streetName,
+        coordinates: [start, end],
+        midpoint,
+        distance: distanceInMeters(center, midpoint)
+      });
     }
   });
-  const sourceSegments = segments.length > 0
+  if (segments.length === 0) return [];
+  const maxStripes = 28;
+  const picked = segments.length <= maxStripes
     ? segments
-    : Array.from({ length: 12 }, (_, index) => {
-      const angle = index * 30;
-      const distance = 220 + (index % 3) * 240;
-      const start = offsetCoordinates(center, distance, angle);
-      const end = offsetCoordinates(start, 95, (angle + 90) % 360);
-      return {
-        coordinates: [start, end],
-        midpoint: [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2],
-        distance
-      };
-    });
-  const maxStripes = 24;
-  const picked = sourceSegments.length <= maxStripes
-    ? sourceSegments
-    : Array.from({ length: maxStripes }, (_, index) => sourceSegments[Math.floor(index * sourceSegments.length / maxStripes)]);
+    : Array.from({ length: maxStripes }, (_, index) => segments[Math.floor(index * segments.length / maxStripes)]);
   return picked.map((segment, index) => ({
     id: `street-stripe-${index + 1}`,
+    streetName: segment.streetName,
     coordinates: segment.coordinates,
     midpoint: segment.midpoint,
     distance: segment.distance,
@@ -364,7 +347,7 @@ export default function App() {
     setOsmParkingError('');
     setOsmParkingLoading(true);
     const [latitude, longitude] = coordinates;
-    const query = `[out:json][timeout:15];nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude});out center tags;way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street|service)$"](around:${destinationRadius},${latitude},${longitude});out geom;`;
+    const query = `[out:json][timeout:15];nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude});out center tags;way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street)$"]["area"!="yes"]["access"!="private"]["name"](around:${destinationRadius},${latitude},${longitude});out geom;`;
     const controller = new AbortController();
     osmRequestController.current = controller;
     const timeout = window.setTimeout(() => controller.abort(), 18000);
@@ -405,11 +388,20 @@ export default function App() {
       }).filter(Boolean);
 
       const roads = data.elements
-        .filter(element => element.tags?.highway && Array.isArray(element.geometry))
-        .map(element => element.geometry.filter(point =>
-          Number.isFinite(point.lat) && Number.isFinite(point.lon)
-        ))
-        .filter(geometry => geometry.length > 1);
+        .filter(element =>
+          element.tags?.highway
+          && element.tags?.name
+          && element.tags?.area !== 'yes'
+          && element.tags?.access !== 'private'
+          && Array.isArray(element.geometry)
+        )
+        .map(element => ({
+          name: element.tags.name,
+          points: element.geometry.filter(point =>
+            Number.isFinite(point.lat) && Number.isFinite(point.lon)
+          )
+        }))
+        .filter(road => road.points.length > 1);
 
       if (requestId === osmRequestId.current) {
         setOsmParking(locations);
@@ -513,9 +505,14 @@ export default function App() {
     );
   const mapPlaces = destinationCoordinates ? [...filteredPlaces, ...demoMapPlaces] : filteredPlaces;
   const radiusCenter = destinationCoordinates || mapCenter;
-  const activeRoadLines = destinationCoordinates ? osmRoads : defaultPaulistaRoads;
-  const allStreetStripes = createStreetStripes(radiusCenter, activeRoadLines);
+  const allStreetStripes = createStreetStripes(radiusCenter, osmRoads);
   const streetStripes = allStreetStripes.filter(stripe => !onlyAccessible || stripe.accessible);
+
+  useEffect(() => {
+    if (authenticated && !destinationCoordinates && osmRoads.length === 0 && !osmParkingLoading && !osmParkingError) {
+      void loadOsmParking(mapCenter);
+    }
+  }, [authenticated]);
   const nav = [['Início', Home], ['Mapa', Map], ['Alertas na via', TriangleAlert], ['Rotas acessíveis', Accessibility], ['Meus trajetos', Route], ['Perfil', User]];
   const card = place => <article className={`parking ${selected === place.id ? 'sel' : ''}`} key={place.id} onClick={() => setSelected(place.id)}>
     <div className="car"><CarFront /></div>
@@ -850,12 +847,12 @@ function MapArt({ center, title, places = [], osmParking = [], streetStripes = [
       }).addTo(layers);
       const tooltip = document.createElement('span');
       tooltip.textContent = isFree
-        ? `Traço azul: tem vaga na rua (${formatDistance(stripe.distance)})`
-        : `Traço vermelho: sem vaga na rua (${formatDistance(stripe.distance)})`;
+        ? `${stripe.streetName} · Traço azul: tem vaga na rua (${formatDistance(stripe.distance)})`
+        : `${stripe.streetName} · Traço vermelho: sem vaga na rua (${formatDistance(stripe.distance)})`;
       line.bindTooltip(tooltip, { sticky: true });
       const popup = document.createElement('div');
       const titleNode = document.createElement('strong');
-      titleNode.textContent = isFree ? 'Vaga disponível na rua' : 'Rua sem vaga disponível';
+      titleNode.textContent = `${stripe.streetName} · ${isFree ? 'Tem vaga na rua' : 'Sem vaga na rua'}`;
       const detailNode = document.createElement('p');
       detailNode.textContent = isFree
         ? 'Traço azul no raio de 1 km · vaga livre na simulação'
