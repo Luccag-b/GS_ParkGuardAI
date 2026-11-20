@@ -91,40 +91,44 @@ function createDemoMapPlaces(center, roadLines = []) {
 }
 
 function createStreetStripes(center, roadLines = []) {
-  const segments = [];
-  roadLines.forEach(road => {
-    const line = Array.isArray(road) ? road : road.points || [];
+  const stripes = [];
+  roadLines.forEach((road, roadIndex) => {
+    const rawPoints = Array.isArray(road) ? road : road.points || road.geometry || [];
     const streetName = Array.isArray(road) ? 'Via mapeada' : road.name || 'Via mapeada';
-    for (let index = 0; index < line.length - 1; index += 1) {
-      const start = [line[index].lat, line[index].lon];
-      const end = [line[index + 1].lat, line[index + 1].lon];
-      if (!Number.isFinite(start[0]) || !Number.isFinite(start[1]) || !Number.isFinite(end[0]) || !Number.isFinite(end[1])) continue;
-      if (distanceInMeters(center, start) > destinationRadius || distanceInMeters(center, end) > destinationRadius) continue;
-      const segmentLength = distanceInMeters(start, end);
-      if (segmentLength < 20 || segmentLength > 180) continue;
-      const midpoint = [(start[0] + end[0]) / 2, (start[1] + end[1]) / 2];
-      segments.push({
-        streetName,
-        coordinates: [start, end],
-        midpoint,
-        distance: distanceInMeters(center, midpoint)
-      });
-    }
+    let currentChunk = [];
+
+    const flushChunk = () => {
+      if (currentChunk.length >= 2) {
+        const midpoint = currentChunk[Math.floor(currentChunk.length / 2)];
+        const index = stripes.length;
+        stripes.push({
+          id: `street-stripe-${roadIndex}-${index}`,
+          streetName,
+          coordinates: currentChunk,
+          midpoint,
+          distance: distanceInMeters(center, midpoint),
+          availability: index % 2 === 0 ? 'free' : 'occupied',
+          accessible: index % 4 === 0
+        });
+      }
+      currentChunk = [];
+    };
+
+    rawPoints.forEach(point => {
+      const coords = [point.lat, point.lon];
+      if (!Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) {
+        flushChunk();
+        return;
+      }
+      if (distanceInMeters(center, coords) <= destinationRadius) {
+        currentChunk.push(coords);
+      } else {
+        flushChunk();
+      }
+    });
+    flushChunk();
   });
-  if (segments.length === 0) return [];
-  const maxStripes = 28;
-  const picked = segments.length <= maxStripes
-    ? segments
-    : Array.from({ length: maxStripes }, (_, index) => segments[Math.floor(index * segments.length / maxStripes)]);
-  return picked.map((segment, index) => ({
-    id: `street-stripe-${index + 1}`,
-    streetName: segment.streetName,
-    coordinates: segment.coordinates,
-    midpoint: segment.midpoint,
-    distance: segment.distance,
-    availability: index % 2 === 0 ? 'free' : 'occupied',
-    accessible: index % 4 === 0
-  }));
+  return stripes;
 }
 
 function distanceInMeters([lat1, lon1], [lat2, lon2]) {
@@ -355,21 +359,37 @@ export default function App() {
     setOsmParkingError('');
     setOsmParkingLoading(true);
     const [latitude, longitude] = coordinates;
-    const query = `[out:json][timeout:15];nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude});out center tags;way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street)$"]["area"!="yes"]["access"!="private"]["name"](around:${destinationRadius},${latitude},${longitude});out geom;`;
+    const query = `[out:json][timeout:20];nwr["amenity"~"^(parking|parking_space)$"](around:${destinationRadius},${latitude},${longitude});out center tags;way["highway"~"^(primary|secondary|tertiary|unclassified|residential|living_street)$"]["area"!="yes"]["access"!="private"]["name"](around:${destinationRadius},${latitude},${longitude});out geom tags;`;
     const controller = new AbortController();
     osmRequestController.current = controller;
-    const timeout = window.setTimeout(() => controller.abort(), 18000);
+    const timeout = window.setTimeout(() => controller.abort(), 20000);
+    const overpassEndpoints = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter'
+    ];
 
     try {
-      const response = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: controller.signal
-      });
-      if (!response.ok) throw new Error('O OpenStreetMap não conseguiu carregar estacionamentos e vias agora.');
-      const data = await response.json();
-      if (!Array.isArray(data.elements)) throw new Error('A resposta do OpenStreetMap veio em um formato inválido.');
+      let data = null;
+      let lastError = null;
+      for (const endpoint of overpassEndpoints) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `data=${encodeURIComponent(query)}`,
+            signal: controller.signal
+          });
+          if (!response.ok) throw new Error('O OpenStreetMap não conseguiu carregar estacionamentos e vias agora.');
+          const parsed = await response.json();
+          if (!Array.isArray(parsed.elements)) throw new Error('A resposta do OpenStreetMap veio em um formato inválido.');
+          data = parsed;
+          break;
+        } catch (endpointError) {
+          lastError = endpointError;
+          if (controller.signal.aborted) break;
+        }
+      }
+      if (!data) throw lastError || new Error('O OpenStreetMap não conseguiu carregar estacionamentos e vias agora.');
 
       const locations = data.elements.map(element => {
         const point = element.type === 'node' ? [element.lat, element.lon] : [element.center?.lat, element.center?.lon];
@@ -892,7 +912,7 @@ function MapArt({ center, title, places = [], osmParking = [], streetStripes = [
       line.bindPopup(popup);
     });
 
-    places.filter(place => place.spots > 0).forEach(place => {
+    places.filter(place => place.spots > 0 && place.type !== 'street').forEach(place => {
       const isStreet = place.type === 'street';
       const typeLabel = isStreet ? 'Vaga de rua' : 'Estacionamento';
       const isGeneratedDemo = place.isGeneratedDemo;
